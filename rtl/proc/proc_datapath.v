@@ -52,10 +52,14 @@ module proc_datapath(
     input wire reg_is_jalr,
     input wire reg_rf_en_wd,
     output wire hz_imul,
-    input wire regX_is_br_ins
+    input wire regX_is_br_ins,
+    output wire actual_taken,
+    output wire predict_taken_X,
+    output wire[31:0] predict_target_X,
+    output wire[31:0] br_target_X_wire
     );
     
-    wire[31:0] br_target_X_wire, pc_reg_D_wire, ins_reg_D_wire ;
+    wire[31:0] pc_reg_D_wire, ins_reg_D_wire ;
     wire[31:0] pc_reg_F_wire, ins_wire, jalr_pc_value_wire;
     wire hz_reg_F_wire, hz_reg_D_wire, hz_reg_X_wire, flush_delay;
 
@@ -82,11 +86,10 @@ module proc_datapath(
     //could have used a mux to select between ins_wire and addix0, x0, 0 but that would have added an extra delay in the critical path. So, used bitwise AND operation to discard ins from bram during flush.
     //this ins would hit the default case of control unit, which disables the register write and memory write operations, thus preventing any unwanted writes to the register file or data memory during flush.
     assign ins_cu = ins_wire; //to be used in control unit for decoding
-    wire predict_taken, predict_taken_D, predict_taken_X;
-    wire [31:0] predict_target, predict_target_D, predict_target_X;
+    wire predict_taken, predict_taken_D;
+    wire [31:0] predict_target, predict_target_D;
     wire [1:0] btb_history, btb_history_D, btb_history_X;
     wire[31:0] pc_reg_X;
-    wire actual taken;
 
     stage_if fetch_stage_inst(
         .clk(clk),

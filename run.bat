@@ -23,6 +23,7 @@ iverilog -o sim/sim.out ^
   rtl/proc/stage_if.v ^
   rtl/proc/stage_mem.v ^
   rtl/proc/stage_wb.v ^
+  rtl/proc/branch_predictor.v ^
   tb/tb_top.v
 
 :: Check if compilation failed

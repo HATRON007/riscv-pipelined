@@ -39,6 +39,8 @@ module proc_top(
     wire hz_imul;
     wire [2:0] load_sel_M, store_sel_M;
     wire regX_is_br_ins;
+    wire actual_taken, predict_taken_X;
+    wire [31:0] predict_target_X, br_target_X_wire;
     
     proc_control control_unit_inst(
         .clk(clk),
@@ -72,7 +74,11 @@ module proc_top(
         .hz_imul(hz_imul),
         .load_sel_M(load_sel_M),
         .store_sel_M(store_sel_M),
-        .regX_is_br_ins(regX_is_br_ins)
+        .regX_is_br_ins(regX_is_br_ins),
+        .actual_taken(actual_taken),
+        .predict_taken_X(predit_taken_X),
+        .predict_target_X(predict_target_X),
+        .br_target_X_wire(br_target_X_wire)
     );
     
     proc_datapath datapath_inst(
@@ -107,7 +113,11 @@ module proc_top(
         .hz_imul(hz_imul),
         .load_sel_M(load_sel_M),
         .store_sel_M(store_sel_M),
-        .is_branch_X(regX_is_br_ins)
+        .is_branch_X(regX_is_br_ins),
+        .actual_taken(actual_taken),
+        .predict_taken_X(predit_taken_X),
+        .predict_target_X(predict_target_X),
+        .br_target_X_wire(br_target_X_wire)
     );
     
 endmodule

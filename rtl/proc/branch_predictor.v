@@ -24,7 +24,7 @@ module branch_predictor(
 
     always @(*) begin
         case (actual_taken)
-            1'b0: btb_wd[1:0] = (btb_history_X == 2'b00)? 2'b00 : btb_history_X - 2'b01; 
+            1'b0: btb_wd[1:0] = (btb_history_X == 2'b00)? 2'b00 : btb_history_X - 2'b01;
             1'b1: btb_wd[1:0] = (btb_history_X == 2'b11)? 2'b11 : btb_history_X + 2'b01;
             default: btb_wd[1:0] = 2'b00;
         endcase

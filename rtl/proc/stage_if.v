@@ -92,9 +92,8 @@ module stage_if(
         if(reg_is_jmp_ins & reg_is_jalr) pc_next_F = jalr_pc_value;
         //else pc_next_F = (pc_sel_F)? pc_incr_F : br_target_X;
         else begin
-            if(clear) pc_next_F = ({predict_taken_X, actual_taken} == 2'10)? pc_reg_X + 32'd4 : br_target_X;
-            else if(predict_taken) pc_next_F = predict_target;
-            else pc_next_F = (pc_sel_F)? pc_incr_F : br_target_X;
+            if(clear) pc_next_F = ({predict_taken_X, actual_taken} == 2'b10)? pc_reg_X + 32'd4 : br_target_X;
+            else pc_next_F = (predict_taken)? predict_target : pc_incr_F;
         end
     end
     

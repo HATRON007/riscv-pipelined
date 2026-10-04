@@ -52,7 +52,11 @@ module proc_control(
     output reg reg_rf_en_wd,
     output reg[2:0] load_sel_M,
     output reg[2:0] store_sel_M,
-    output reg regX_is_br_ins
+    output reg regX_is_br_ins,
+    input actual_taken,
+    input predict_taken_X,
+    input wire[31:0] predict_target_X,
+    input wire[31:0] br_target_X_wire
     );
     
     reg regX_rf_en_wd, regM_rf_en_wd;
@@ -72,8 +76,10 @@ module proc_control(
     reg[2:0] store_sel, store_sel_X; 
 
     assign pc_sel_F = (reg_is_jmp_ins)? 0 : (regX_is_br_ins && !hz_out_X && br_con_eq_X) ? 1'b0 : 1'b1;
-    assign clear    = ((regX_is_br_ins && !hz_out_X) || reg_is_jmp_ins)? (br_con_eq_X | reg_is_jmp_ins) : 0;
-    
+    // assign clear    = ((regX_is_br_ins && !hz_out_X) || reg_is_jmp_ins )? (br_con_eq_X | reg_is_jmp_ins) : 0;
+    assign clear    = (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins) && (predict_target_X != br_target_X_wire ) );
+    //ports need to be dec: 
+
     always @(*) begin
         reg_en_F = 1;
         reg_en_D = 1;
