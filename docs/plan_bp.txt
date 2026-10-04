@@ -1,0 +1,44 @@
+plan for bp
+
+create a new module
+
+now during the fetch stage the current ins thatss being processed out of bram in the next edge, the pc_reg_F has that address of that current ins that would move to the decode stage in the next edge right???. YES
+
+need to know whether this ins is a branch ins, ig the tag would come helpful now
+
+now cross check this address in the btb, see if any entry matches, and look at the state of it, , if its in the 10 or 11 then what i have to do is , take the address out of btb and multiplex it to pc_next_F and load it with this value instead of pc+4 on the edge(i think this would add a critical path delay that just directly sending out of pc_reg_F)
+
+
+now on the edge, the br ins would move into d and the target address would be in the fetch stage
+i have to pass the status of prediction to the along with the br ins, so it would go to the X stage with it.. maybe one bit indicating taken or not taken)
+now the br ins move to x and my boy target ins move into D stage,
+
+
+now here comes the moment of truth!!!!
+br will be evaluated 
+and four cases are possible
+
+Guessed Not Taken (0) / Actual Not Taken (0): Perfect. Do nothing.
+Guessed Taken (1) / Actual Taken (1): Perfect. Do nothing. (This is where you save 2 cycles!).
+Guessed Taken (1) / Actual Not Taken (0): MISPREDICTION! The pipeline fetched 0x300 but it should have fetched PC+4. You must assert clear = 1, flush IF/ID, and force the PC back to PC+4.
+Guessed Not Taken (0) / Actual Taken (1): MISPREDICTION! You must assert clear = 1, flush IF/ID, and force the PC to the branch target.
+
+
+the data thats being sent out let it be 2 stage flag
+okay for the first two cases no prob, now i need to take some data into the fetch stage, in case of case 1 and not taken, i send a data to dec counter (00)
+in case of 2 , i send data to inc the counter(11)
+in case of 3 , i send data to inc the counter (01), i have to trigger a flush & force the pc to pc + 4(simple may be i carry the br ins address from pc_reg_D into the execute stage along with the branch)
+
+in case of 4 , i send data to dec the couter(10) (this would be simple as this is how my previous thing is working)
+
+i have to send thiss 2 bit stage flag to fetch along with the br_target address
+now how the data im sending will correctly update the proper entry in  btb??
+(so im carry the br address also along with it i think i can easily update using the br address by looking it up in the btb and updating it)
+
+(im still not completely understood the concept of tag, why and where its used? and also there will be entries so wait... do i have to build a large no of comparators to check each entry against the br address, and also not clear how the btb looks like (i mean the sturcture)
+
+
+planning to implement it as lutram
+
+case when btb predicts for a wrong ins : Flush the pipeline + Fix the PC + Update the BTB (set the vaild bit to 0)
+

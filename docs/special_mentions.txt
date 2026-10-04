@@ -1,0 +1,5 @@
+GitHub
+special mentions
+
+1. didn't thought of memory when starting the project and added a asynchronous read
+2. ins where being overwritten in decode during stalls

@@ -51,7 +51,8 @@ module proc_datapath(
     input wire reg_is_jmp_ins,
     input wire reg_is_jalr,
     input wire reg_rf_en_wd,
-    output wire hz_imul
+    output wire hz_imul,
+    input wire regX_is_br_ins
     );
     
     wire[31:0] br_target_X_wire, pc_reg_D_wire, ins_reg_D_wire ;
@@ -81,7 +82,12 @@ module proc_datapath(
     //could have used a mux to select between ins_wire and addix0, x0, 0 but that would have added an extra delay in the critical path. So, used bitwise AND operation to discard ins from bram during flush.
     //this ins would hit the default case of control unit, which disables the register write and memory write operations, thus preventing any unwanted writes to the register file or data memory during flush.
     assign ins_cu = ins_wire; //to be used in control unit for decoding
-     
+    wire predict_taken, predict_taken_D, predict_taken_X;
+    wire [31:0] predict_target, predict_target_D, predict_target_X;
+    wire [1:0] btb_history, btb_history_D, btb_history_X;
+    wire[31:0] pc_reg_X;
+    wire actual taken;
+
     stage_if fetch_stage_inst(
         .clk(clk),
         .clear(clear),
@@ -97,7 +103,29 @@ module proc_datapath(
         .pc_reg_F(pc_reg_F_wire),            //instruction memory
         .jalr_pc_value(jalr_pc_value_wire),
         .reg_is_jalr(reg_is_jalr),
-        .flush_delay(flush_delay)
+        .flush_delay(flush_delay),
+        .predict_taken(predict_taken),
+        .predict_target(predict_target),
+        .btb_history(btb_history),
+        .predict_taken_D(predict_taken_D),
+        .predict_target_D(predict_target_D),
+        .btb_history_D(btb_history_D),
+        .pc_reg_X(pc_reg_X),
+        .actual_taken(actual_taken),
+        .predict_taken_X(predict_taken_X)
+    );
+
+    branch_predictor bp_inst(
+        .clk(clk),
+        .pc_reg_F(pc_reg_F_wire),
+        .predict_taken(predict_taken),
+        .predict_target(predict_target),
+        .btb_history(btb_history),
+        .pc_reg_X(pc_reg_X),
+        .btb_history_X(btb_history_X),
+        .is_branch_X(regX_is_br_ins), //if pc_sel_F is 0, then it is a branch instruction
+        .actual_taken(!pc_sel_F),
+        .actual_target(br_target_X_wire)
     );
     
     wire[4:0] dr_reg_W_wire;        //from dmemory stage
@@ -105,7 +133,7 @@ module proc_datapath(
     wire[31:0] operand0_reg_X_wire, operand1_reg_X_wire, dstore_reg_X_wire, reg_rf_rd0_wire, reg_sign_ext_imm_wire;
     wire[4:0] sr0_wire, sr1_wire, sr0_reg_X_wire, sr1_reg_X_wire;
     wire[31:0] rd_mem_wire;
-    
+
     stage_id decode_stage_inst(
         .clk(clk),
         .reset(reset),
@@ -131,7 +159,14 @@ module proc_datapath(
         .sr1_reg_X(sr1_reg_X_wire),
         .reg_rf_rd0(reg_rf_rd0_wire),
         .reg_sign_ext_imm(reg_sign_ext_imm_wire),
-        .reg_rf_en_wd(reg_rf_en_wd)
+        .reg_rf_en_wd(reg_rf_en_wd),
+        .predict_taken_D(predict_taken_D),
+        .predict_target_D(predict_target_D),
+        .btb_history_D(btb_history_D),
+        .predict_taken_X(predict_taken_X),
+        .predict_target_X(predict_target_X),
+        .btb_history_X(btb_history_X),
+        .pc_reg_X(pc_reg_X)
     );
     
     wire[31:0] ex_res_reg_M_wire, dstore_reg_M_wire;

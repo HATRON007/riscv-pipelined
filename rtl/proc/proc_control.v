@@ -51,7 +51,8 @@ module proc_control(
     output reg reg_is_jalr,
     output reg reg_rf_en_wd,
     output reg[2:0] load_sel_M,
-    output reg[2:0] store_sel_M
+    output reg[2:0] store_sel_M,
+    output reg regX_is_br_ins
     );
     
     reg regX_rf_en_wd, regM_rf_en_wd;
@@ -64,7 +65,7 @@ module proc_control(
     reg is_jalr;
     
     reg reg_is_br_ins;
-    reg regX_is_br_ins;
+    // reg regX_is_br_ins;
     reg mem_en_wd;
 
     reg[2:0] load_sel, load_sel_X; 

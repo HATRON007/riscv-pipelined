@@ -45,7 +45,14 @@ module stage_id(
     output wire[4:0] sr1,
     output reg[4:0] sr0_reg_X,
     output reg[4:0] sr1_reg_X,
-    output reg[31:0] reg_sign_ext_imm
+    output reg[31:0] reg_sign_ext_imm,
+    input wire predict_taken_D,
+    input wire[31:0] predict_target_D,
+    input wire[1:0] btb_history_D,
+    output reg predict_taken_X,
+    output reg[31:0] predict_target_X,
+    output reg[1:0] btb_history_X,
+    output reg[31:0] pc_reg_X
     );
     
     wire[31:0] pc_plus_imm_D, rf_rd0, rf_rd1, sign_ext_imm_D;
@@ -66,6 +73,11 @@ module stage_id(
                     sr1_reg_X       <= 5'b0;
                     reg_sign_ext_imm    <= 32'b0;
                     reg_rf_rd0      <= 32'b0;
+
+                    predict_taken_X <= 1'b0;
+                    predict_target_X <= 32'b0;
+                    btb_history_X <= 2'b0;
+                    pc_reg_X <= 32'b0;
                   end
                   
         else begin
@@ -79,6 +91,12 @@ module stage_id(
             sr0_reg_X       <= (reg_en_X)? sr0 : sr0_reg_X;
             sr1_reg_X       <= (reg_en_X)? sr1 : sr1_reg_X;
             reg_rf_rd0      <= (reg_en_X)? rf_rd0 : reg_rf_rd0;
+
+            //for transferring the branch predictor result to execute stage
+            predict_taken_X <= (reg_en_X)? predict_taken_D : predict_taken_X;
+            predict_target_X <= (reg_en_X)? predict_target_D : predict_target_X;
+            btb_history_X <= (reg_en_X)? btb_history_D : btb_history_X;
+            pc_reg_X <= (reg_en_X)? pc_reg_D : pc_reg_X;
         end
     end
     

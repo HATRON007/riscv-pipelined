@@ -38,6 +38,7 @@ module proc_top(
     wire sr1_valid, sr1_valid_X, sr0_valid, sr0_valid_X, reg_is_jmp_ins_wire, reg_is_jalr_wire;
     wire hz_imul;
     wire [2:0] load_sel_M, store_sel_M;
+    wire regX_is_br_ins;
     
     proc_control control_unit_inst(
         .clk(clk),
@@ -70,7 +71,8 @@ module proc_top(
         .reg_rf_en_wd(reg_rf_en_wd_wire),
         .hz_imul(hz_imul),
         .load_sel_M(load_sel_M),
-        .store_sel_M(store_sel_M)
+        .store_sel_M(store_sel_M),
+        .regX_is_br_ins(regX_is_br_ins)
     );
     
     proc_datapath datapath_inst(
@@ -104,7 +106,8 @@ module proc_top(
         .reg_rf_en_wd(reg_rf_en_wd_wire),
         .hz_imul(hz_imul),
         .load_sel_M(load_sel_M),
-        .store_sel_M(store_sel_M)
+        .store_sel_M(store_sel_M),
+        .is_branch_X(regX_is_br_ins)
     );
     
 endmodule
