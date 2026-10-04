@@ -28,7 +28,15 @@ module sram(
     output reg[31:0] mem_rd
     );
     
+
     reg[31:0] memory[1023:0];
+    integer i;
+    initial begin
+        for(i=0; i<1024; i=i+1) begin
+            memory[i] = 32'b0;
+        end
+    end
+    
     always @(posedge clk) begin
         mem_rd <= memory[mem_address >> 2];
         if(we[0]) memory[mem_address >> 2][7:0] <= mem_wd[7:0];

@@ -49,7 +49,7 @@ module branch_predictor(
     integer i;
     initial begin //instantiating the btb on reset
             for(i=0; i<256; i=i+1) begin
-                btb_array[i] <= 57'b0;
+                btb_array[i] = 57'b0;
             end
     end
 

@@ -35,7 +35,7 @@ module stage_if(
     // output reg[31:0] ins_reg_D, before synchronous ram
     output reg[31:0] pc_reg_F,
     input wire[31:0] jalr_pc_value,
-    output reg flush_delay //to discard ins from bram during flush,
+    output reg flush_delay, //to discard ins from bram during flush,
     
     //from branch predictor
     input wire predict_taken,
