@@ -77,8 +77,7 @@ module proc_control(
 
     assign pc_sel_F = (reg_is_jmp_ins)? 0 : (regX_is_br_ins && !hz_out_X && br_con_eq_X) ? 1'b0 : 1'b1;
     // assign clear    = ((regX_is_br_ins && !hz_out_X) || reg_is_jmp_ins )? (br_con_eq_X | reg_is_jmp_ins) : 0;
-    assign clear    = (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins) && (predict_target_X != br_target_X_wire ) );
-    //ports need to be dec: 
+    assign clear    = (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && regX_is_br_ins && (predict_target_X != br_target_X_wire ) && actual_taken && predict_taken_X) || (predict_taken_X && !regX_is_br_ins));
 
     always @(*) begin
         reg_en_F = 1;

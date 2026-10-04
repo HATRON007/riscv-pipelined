@@ -1,0 +1,2043 @@
+
+======================================================================
+FILE: alu.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10.06.2026 05:37:43
+// Design Name: 
+// Module Name: alu
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module alu(
+    input wire[31:0] operand0,
+    input wire[31:0] operand1,
+    input wire[4:0] alu_func_sel,
+    output reg[31:0] result,
+    output reg br_con_eq_X
+    );
+    
+    always @(*) begin                                    
+        case(alu_func_sel)
+            5'd0  : begin        //add, lw
+                        result = operand0 + operand1;
+                        br_con_eq_X = 0;
+                    end
+            5'd1  : begin        //beq
+                        br_con_eq_X = (operand0 + 1 + ~operand1)? 0 : 1;
+                        result = 32'b0;
+                    end
+            5'd2 : begin        //sub
+                        result = operand0 + 32'b1 + ~operand1;
+                        br_con_eq_X = 0;
+                   end
+            5'd3 : begin        //and
+                        result = operand0 & operand1;
+                        br_con_eq_X = 0;
+                   end
+            5'd4 : begin       //or
+                        result = operand0 | operand1;
+                        br_con_eq_X = 0;
+                   end
+            5'd5 : begin       //xor
+                        result = operand0 ^ operand1;
+                        br_con_eq_X = 0;
+                   end
+            5'd6 : begin       //slt
+                    if((operand0[31] == 0) && (operand1[31] == 1)) result = 0;
+                    else if((operand0[31] == 1) && (operand1[31] == 0)) result = 1;
+                    else if((operand0[31] == 1) && (operand1[31] == 1)) result = (operand0 < operand1);
+                    else result = (operand0 < operand1);
+                    br_con_eq_X = 0;
+                   end
+            5'd7 : begin       //sltu
+                        result = (operand0 < operand1);
+                        br_con_eq_X = 0;
+                   end
+            5'd8 : begin       //srl
+                        br_con_eq_X = 0;
+                        result = operand0 >> operand1[4:0];
+                   end
+            5'd9 : begin       //sra
+                        br_con_eq_X = 0;
+                        result = $signed(operand0) >>> operand1[4:0];
+                   end
+            5'd10 : begin       //sll
+                        br_con_eq_X = 0;
+                        result = operand0 << operand1[4:0];
+                   end        
+            5'd11 : begin       //mul
+                        br_con_eq_X = 0;
+                        result = 32'b0;
+                   end   
+            5'd12 : begin       //lui
+                        result = operand1;
+                        br_con_eq_X = 0;
+                    end
+            5'd13 : begin       //bne
+                        br_con_eq_X = (operand0 + 1 + ~operand1)? 1 : 0;
+                        result = 32'b0;
+                    end
+            5'd14 : begin       //blt
+                        if((operand0[31] == 0) && (operand1[31] == 1)) br_con_eq_X = 0;
+                        else if((operand0[31] == 1) && (operand1[31] == 0)) br_con_eq_X = 1;
+                        else if((operand0[31] == 1) && (operand1[31] == 1)) br_con_eq_X = (operand0 < operand1);
+                        else br_con_eq_X = (operand0 < operand1);
+                        result = 32'b0;
+                   end
+            5'd15 : begin       //bge
+                        if((operand0[31] == 1) && (operand1[31] == 0)) br_con_eq_X = 0;
+                        else if((operand0[31] == 0) && (operand1[31] == 1)) br_con_eq_X = 1;
+                        else if((operand0[31] == 1) && (operand1[31] == 1)) br_con_eq_X = (operand0 >= operand1);
+                        else br_con_eq_X = (operand0 >= operand1);
+                        result = 32'b0;
+                   end
+            5'd16 : begin       //bltu
+                        br_con_eq_X = (operand0 < operand1);
+                        result = 32'b0;
+                    end
+            5'd17 : begin       //bgeu
+                        br_con_eq_X = (operand0 >= operand1);
+                        result = 32'b0;
+                    end
+            default : begin
+                        result = 32'b0;
+                        br_con_eq_X = 0;
+                      end
+        endcase
+    end
+    
+endmodule
+
+
+======================================================================
+FILE: branch_predictor.v
+======================================================================
+
+module branch_predictor(
+    input clk,
+
+    input wire[31:0] pc_reg_F,
+    output predict_taken,
+    output wire[31:0] predict_target,
+    output wire[1:0] btb_history,
+    
+    input wire[31:0] pc_reg_X,
+    input wire[1:0] btb_history_X,
+    input is_branch_X,
+    input actual_taken,
+    input wire[31:0] actual_target
+);
+
+    //valid_1b + tag_22b + target_32b + bth_2b
+    reg [56:0] btb_array [255:0];
+
+    wire [7:0] btb_index = pc_reg_F[9:2];
+    wire[56:0] btb_rd = btb_array[btb_index];
+
+    reg btb_we;
+    reg[56:0] btb_wd;
+
+    always @(*) begin
+        case (actual_taken)
+            1'b0: btb_wd[1:0] = (btb_history_X == 2'b00)? 2'b00 : btb_history_X - 2'b01;
+            1'b1: btb_wd[1:0] = (btb_history_X == 2'b11)? 2'b11 : btb_history_X + 2'b01;
+            default: btb_wd[1:0] = 2'b00;
+        endcase
+        
+        btb_wd[33:2] = actual_target;
+        btb_wd[55:34] = pc_reg_X[31:10];
+        btb_wd[56] = 1'b1; 
+        btb_we = is_branch_X;
+    end
+
+    //getting the data out of read
+    wire btb_valid = btb_rd[56];
+    wire[21:0] btb_tag = btb_rd[55:34];
+    wire[31:0] btb_target = btb_rd[33:2];
+    assign btb_history = btb_rd[1:0];
+
+
+    wire tag_match = (pc_reg_F[31:10] == btb_tag);
+    assign predict_taken = (btb_valid & tag_match & (btb_history[1] == 1'b1));
+    assign predict_target = btb_target;
+
+    integer i;
+    initial begin //instantiating the btb on reset
+            for(i=0; i<256; i=i+1) begin
+                btb_array[i] <= 57'b0;
+            end
+    end
+
+    always @(posedge clk) begin
+        if(btb_we) btb_array[pc_reg_X[9:2]] <= btb_wd;
+    end
+endmodule
+
+======================================================================
+FILE: hazard_unit.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 16.06.2026 20:23:07
+// Design Name: 
+// Module Name: hazard_unit
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module hazard_unit(
+    input wire mem_rd,
+    input wire[4:0] sr0,
+    input wire[4:0] sr1,
+    input wire[4:0] sr0_reg_X,
+    input wire[4:0] sr1_reg_X,
+    input wire[4:0] dr_reg_X,
+    input wire[4:0] dr_reg_M,
+    input wire[4:0] dr_reg_W,
+    input wire sr0_valid,
+    input wire sr1_valid,
+    input wire sr0_valid_X,
+    input wire sr1_valid_X,
+    output reg[1:0] operand0_sel_X,
+    output reg[1:0] operand1_sel_X,
+    output reg[1:0] ex_res_reg_sel_M,
+    output reg hz_reg_F,
+    output reg hz_reg_D,
+    output reg hz_reg_X,
+    output reg hz_out_X,
+    input mem_en_wd_X,
+    input wire in_imul_computation,
+    output reg hz_imul,
+    input wb_res_sel_M
+    );
+    
+    //Forwarding Logic
+        //operand0
+    always @(*) begin
+        if((dr_reg_M == sr0_reg_X) && (dr_reg_M != 0) && sr0_valid_X) begin
+            operand0_sel_X = 2'd1;
+        end
+        
+        else if((dr_reg_W == sr0_reg_X) && (dr_reg_W != 0) && sr0_valid_X) begin
+            operand0_sel_X = 2'd2;
+        end
+        
+        else operand0_sel_X = 2'd0;
+    end
+    
+    always @(*) begin
+        if((dr_reg_M == sr1_reg_X) && (dr_reg_M != 0) && mem_en_wd_X) begin
+            ex_res_reg_sel_M = 2'd1;
+        end
+        
+        else if((dr_reg_W == sr1_reg_X) && (dr_reg_W != 0) && mem_en_wd_X) begin
+            ex_res_reg_sel_M = 2'd2;
+        end
+        
+        else ex_res_reg_sel_M = 2'd0;
+    end
+    
+        //operand1
+    always @(*) begin 
+       if((dr_reg_M == sr1_reg_X) && (dr_reg_M != 0) && sr1_valid_X && !mem_en_wd_X) begin
+            operand1_sel_X = 2'd1;
+        end
+        
+        else if((dr_reg_W == sr1_reg_X) && (dr_reg_W != 0) && sr1_valid_X && !mem_en_wd_X) begin
+            operand1_sel_X = 2'd2;
+        end
+        
+        else operand1_sel_X = 2'd0;
+    end
+    
+    wire load_hazard_X;
+    // wire load_hazard_M;
+    assign load_hazard_X = (mem_rd == 1) && (dr_reg_X != 0) && (((dr_reg_X == sr0) && sr0_valid) || ((dr_reg_X == sr1) && sr1_valid));
+    //assign load_hazard_M = (wb_res_sel_M == 1) && (dr_reg_M != 0) && (((dr_reg_M == sr0) && sr0_valid) || ((dr_reg_M == sr1) && sr1_valid));
+
+    //Stalling Logic
+    // 1-normal operation, 0-stall the pipeline
+    always @(*) begin
+        if(in_imul_computation) begin
+            hz_reg_F = 0;
+            hz_reg_D = 0;
+            hz_reg_X = 0;
+            hz_out_X = 0;
+            hz_imul = 0;
+        end
+    
+        else begin
+                if(load_hazard_X) begin
+                    hz_reg_F = 0;
+                    hz_reg_D = 0;
+                    hz_reg_X = 0;
+                    hz_out_X = 1;
+                    hz_imul = 1;
+                end 
+            
+            else begin
+                    hz_reg_F = 1;
+                    hz_reg_D = 1;
+                    hz_reg_X = 1;
+                    hz_out_X = 0;
+                    hz_imul = 1;
+                end
+        end
+    end
+    
+endmodule
+
+
+
+
+
+======================================================================
+FILE: imm_gen.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10.06.2026 15:49:18
+// Design Name: 
+// Module Name: imm_gen
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module imm_gen(
+    input wire[31:0] ins,           //instruction
+    input wire[2:0] imm_type_D,       //type for decoding immediate
+    output reg[31:0] sign_ext_imm_D   //sign extended
+    );
+    
+    always @(*) begin
+        case (imm_type_D)
+            3'b0  : sign_ext_imm_D = {{20{ins[31]}},ins[31:20]};     //lw 
+            3'b1  : sign_ext_imm_D = {{20{ins[31]}}, ins[7], ins[30:25], ins[11:8], 1'b0};   //branch ins
+            3'd2  : sign_ext_imm_D = {{27{1'b0}}, ins[24:20]};
+            3'd3  : sign_ext_imm_D = {ins[31:12], 12'b0};
+            3'd4  : sign_ext_imm_D = {{12{ins[31]}},ins[19:12], ins[20], ins[30:21], 1'b0};  //jal, jalr
+            3'd5  : sign_ext_imm_D = {{20{ins[31]}}, ins[31:25], ins[11:7]}; //sw
+            default : sign_ext_imm_D = 32'b0;
+        endcase
+    end
+    
+endmodule
+
+
+======================================================================
+FILE: proc_control.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 13.06.2026 19:30:41
+// Design Name: 
+// Module Name: proc_control
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module proc_control(
+    input clk,
+    input reset,
+    input wire[31:0] ins,
+    input br_con_eq_X,
+    input hz_out_X,
+    input hz_imul,
+    output wire clear,
+    output reg reg_en_F,
+    output reg reg_en_D,
+    output reg reg_en_X,
+    output reg reg_en_M,
+    output reg reg_en_W,
+    output wire pc_sel_F,
+    output reg mem_en_wd_M,
+    output reg mem_en_wd_X,
+    output reg rf_en_wd,
+    output reg operand0_sel_D,
+    output reg[1:0] operand1_sel_D,
+    output reg[2:0] imm_type_D,
+    output reg[4:0] alu_func_sel,
+    output reg wb_res_sel_M,
+    output reg regX_wb_res_sel_M,
+    output reg sr0_valid,
+    output reg sr1_valid,
+    output reg sr0_valid_X,
+    output reg sr1_valid_X,
+    output reg reg_is_jmp_ins,
+    output reg reg_is_jalr,
+    output reg reg_rf_en_wd,
+    output reg[2:0] load_sel_M,
+    output reg[2:0] store_sel_M,
+    output reg regX_is_br_ins,
+    input actual_taken,
+    input predict_taken_X,
+    input wire[31:0] predict_target_X,
+    input wire[31:0] br_target_X_wire
+    );
+    
+    reg regX_rf_en_wd, regM_rf_en_wd;
+    
+    reg reg_wb_res_sel_M;
+    reg reg_pc_sel_F;
+    reg[4:0] reg_alu_func_sel;
+    
+    reg is_jmp_ins;
+    reg is_jalr;
+    
+    reg reg_is_br_ins;
+    // reg regX_is_br_ins;
+    reg mem_en_wd;
+
+    reg[2:0] load_sel, load_sel_X; 
+    reg[2:0] store_sel, store_sel_X; 
+
+    assign pc_sel_F = (reg_is_jmp_ins)? 0 : (regX_is_br_ins && !hz_out_X && br_con_eq_X) ? 1'b0 : 1'b1;
+    // assign clear    = ((regX_is_br_ins && !hz_out_X) || reg_is_jmp_ins )? (br_con_eq_X | reg_is_jmp_ins) : 0;
+    assign clear    = (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && regX_is_br_ins && (predict_target_X != br_target_X_wire ) && actual_taken && predict_taken_X) || (predict_taken_X && !regX_is_br_ins));
+
+    always @(*) begin
+        reg_en_F = 1;
+        reg_en_D = 1;
+        reg_en_X = 1;
+        reg_en_M = 1;
+        reg_en_W = 1;
+        operand0_sel_D = 0;
+        sr0_valid = 1;
+        sr1_valid = 1;
+        is_jmp_ins = 0;
+        is_jalr = 0;
+        load_sel = 3'b0;
+        store_sel = 3'b0;
+        
+        casez({ins[14:12], ins[6:0]}) 
+            //R TYPE instructions
+            10'h033 : if(ins[31:25] == 7'b0) begin //add
+                        reg_alu_func_sel = 5'b0;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+                      else if(ins[31:25] == 7'd32) begin //sub
+                        reg_alu_func_sel = 5'd2;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;                               
+                      end
+                      else begin //mul
+                        reg_alu_func_sel = 5'd11;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;  
+                      end
+            10'h3B3 : begin //and
+                        reg_alu_func_sel = 5'd3;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            10'h333 : begin //or
+                        reg_alu_func_sel = 5'd4;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            10'h233 : begin //xor
+                        reg_alu_func_sel = 5'd5;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            10'h133 : begin //slt
+                        reg_alu_func_sel = 5'd6;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            10'h1B3 : begin //sltu
+                        reg_alu_func_sel = 5'd7;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            10'h2B3 : if(ins[31:25] == 7'b0)
+                          begin //srl
+                            reg_alu_func_sel = 5'd8;
+                            reg_rf_en_wd = 1'b1;
+                            reg_wb_res_sel_M = 1'b0;
+                            operand1_sel_D = 0;
+                            reg_is_br_ins = 1'b0;
+                            mem_en_wd = 0;
+                            imm_type_D = 0;
+                          end
+                       else
+                          begin //sra
+                            reg_alu_func_sel = 5'd9;
+                            reg_rf_en_wd = 1'b1;
+                            reg_wb_res_sel_M = 1'b0;
+                            operand1_sel_D = 0;
+                            reg_is_br_ins = 1'b0;
+                            mem_en_wd = 0;
+                            imm_type_D = 0;
+                          end
+            10'h0B3 : begin //sll
+                        reg_alu_func_sel = 5'd10;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 0;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                      end
+            //I TYPE instructions
+            10'h013 : begin //addi
+                        reg_alu_func_sel = 5'b0;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'h393 : begin //andi
+                        reg_alu_func_sel = 5'd3;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'h313 : begin //ori
+                        reg_alu_func_sel = 5'd4;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'h213 : begin //xori
+                        reg_alu_func_sel = 5'd5;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end      
+            10'h113 : begin //slti
+                        reg_alu_func_sel = 5'd6;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'h193 : begin //sltiu
+                        reg_alu_func_sel = 5'd7;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'h293 : if(ins[31:25] == 7'b0)
+                          begin //srli
+                            reg_alu_func_sel = 5'd8;
+                            reg_rf_en_wd = 1'b1;
+                            reg_wb_res_sel_M = 1'b0;
+                            operand1_sel_D = 1;
+                            reg_is_br_ins = 1'b0;
+                            mem_en_wd = 0;
+                            imm_type_D = 3'd2;
+                            sr0_valid = 1;
+                            sr1_valid = 0;  
+                          end
+                      else 
+                          begin //srai
+                            reg_alu_func_sel = 5'd9;
+                            reg_rf_en_wd = 1'b1;
+                            reg_wb_res_sel_M = 1'b0;
+                            operand1_sel_D = 1;
+                            reg_is_br_ins = 1'b0;
+                            mem_en_wd = 0;
+                            imm_type_D = 3'd2;
+                            sr0_valid = 1;
+                            sr1_valid = 0;
+                          end
+            10'h093 : begin //slli
+                        reg_alu_func_sel = 5'd10;
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 3'd2;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                      end
+            10'b???0110111 : begin //lui
+                                reg_alu_func_sel = 5'd12;
+                                reg_rf_en_wd = 1'b1;
+                                reg_wb_res_sel_M = 1'b0;
+                                operand1_sel_D = 1;
+                                reg_is_br_ins = 1'b0;
+                                mem_en_wd = 0;
+                                imm_type_D = 3'd3;
+                                sr0_valid = 0;
+                                sr1_valid = 0;
+                              end 
+            10'b???0010111 : begin //auipc
+                                reg_alu_func_sel = 5'd0;
+                                reg_rf_en_wd = 1'b1;
+                                reg_wb_res_sel_M = 1'b0;
+                                operand0_sel_D = 1;
+                                operand1_sel_D = 1;
+                                reg_is_br_ins = 1'b0;
+                                mem_en_wd = 0;
+                                imm_type_D = 3'd3;
+                                sr0_valid = 0;
+                                sr1_valid = 0;
+                                
+                              end
+            //MEMORY TYPE INSTRUCTIONS
+            10'h003 : begin //lb
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b1;
+                        reg_alu_func_sel = 5'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                        load_sel = ins[14:12];
+                  end
+            10'h083 : begin //lh
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b1;
+                        reg_alu_func_sel = 5'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                        load_sel = ins[14:12];
+                  end
+            10'h103 : begin //lw
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b1;
+                        reg_alu_func_sel = 5'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                        load_sel = ins[14:12];
+                  end
+            10'h203 : begin //lbu
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b1;
+                        reg_alu_func_sel = 5'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                        load_sel = ins[14:12];
+                  end
+            10'h283 : begin //lhu
+                        reg_rf_en_wd = 1'b1;
+                        reg_wb_res_sel_M = 1'b1;
+                        reg_alu_func_sel = 5'b0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 1;
+                        sr1_valid = 0;
+                        load_sel = ins[14:12];
+                      end
+            10'h023 : begin //sb
+                        reg_rf_en_wd = 1'b0;
+                        reg_wb_res_sel_M = 1'b0;
+                        reg_alu_func_sel = 5'd0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 1;
+                        imm_type_D = 3'd5;
+                        sr0_valid = 1;
+                        sr1_valid = 1;
+                        store_sel = ins[14:12];
+                      end
+            10'h0A3 : begin //sh
+                        reg_rf_en_wd = 1'b0;
+                        reg_wb_res_sel_M = 1'b0;
+                        reg_alu_func_sel = 5'd0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 1;
+                        imm_type_D = 3'd5;
+                        sr0_valid = 1;
+                        sr1_valid = 1;
+                        store_sel = ins[14:12];
+                      end
+            10'h123 : begin //sw
+                        reg_rf_en_wd = 1'b0;
+                        reg_wb_res_sel_M = 1'b0;
+                        reg_alu_func_sel = 5'd0;
+                        operand1_sel_D = 1;
+                        reg_is_br_ins = 1'b0;
+                        mem_en_wd = 1;
+                        imm_type_D = 3'd5;
+                        sr0_valid = 1;
+                        sr1_valid = 1;
+                        store_sel = ins[14:12];
+                      end
+            //J TYPE INSTRUCTIONS
+            10'b???1101111 : begin //jal
+                                reg_alu_func_sel = 5'd0;
+                                reg_rf_en_wd = 1'b1;
+                                reg_wb_res_sel_M = 1'b0;
+                                operand1_sel_D = 2'd3;
+                                operand0_sel_D = 1;
+                                reg_is_br_ins = 1'b0;
+                                mem_en_wd = 0;
+                                imm_type_D = 3'd4;
+                                sr0_valid = 0;
+                                sr1_valid = 0;
+                                is_jmp_ins = 1;
+                             end
+            10'b???1100111 : begin //jalr
+                                reg_alu_func_sel = 5'd0;
+                                reg_rf_en_wd = 1'b1;
+                                reg_wb_res_sel_M = 1'b0;
+                                operand1_sel_D = 2'd3;
+                                operand0_sel_D = 1;
+                                reg_is_br_ins = 1'b0;
+                                mem_en_wd = 0;
+                                imm_type_D = 3'd0;
+                                sr0_valid = 1;
+                                sr1_valid = 0;
+                                is_jmp_ins = 1;
+                                is_jalr = 1;
+                             end
+            //B TYPE INSTRUCTIONS
+            10'h063 : begin //beq
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'b1;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end
+            10'h0E3 : begin //bne
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'd13;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end
+            10'h263 : begin //blt
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'd14;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end
+            10'h2E3 : begin //bge
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'd15;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end 
+            10'h363 : begin //bltu
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'd16;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end
+            10'h3E3 : begin //bgeu
+                        reg_is_br_ins = 1;
+                        reg_rf_en_wd = 0;
+                        reg_wb_res_sel_M = 0;
+                        reg_alu_func_sel = 5'd17;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 1;
+                      end
+            default : begin
+                        reg_alu_func_sel = 5'b0;
+                        reg_rf_en_wd = 1'b0;
+                        reg_wb_res_sel_M = 1'b0;
+                        reg_is_br_ins = 1'b0;
+                        operand1_sel_D = 0;
+                        mem_en_wd = 0;
+                        imm_type_D = 0;
+                        sr0_valid = 0;
+                        sr1_valid = 0;
+                      end
+                        
+        endcase
+    end
+    
+    always @(posedge clk) begin
+    if(reset) begin
+        regX_rf_en_wd <= 1'b0;
+        regM_rf_en_wd <= 1'b0;
+        regX_wb_res_sel_M <= 1'b0;
+        regX_is_br_ins    <= 1'b0;
+        mem_en_wd_X <= 0;
+        mem_en_wd_M <= 0;
+        load_sel_X <= 3'b0;
+        load_sel_M <= 3'b0;
+        store_sel_X <= 3'b0;
+        store_sel_M <= 3'b0;
+        rf_en_wd <= 0;
+        wb_res_sel_M <= 0;
+        alu_func_sel <= 5'b0;
+        sr0_valid_X <= 0;
+        sr1_valid_X <= 0;
+        reg_is_jmp_ins <= 0;
+        reg_is_jalr <= 0;
+    end else begin
+        // 1. Shift MEM -> WB
+        rf_en_wd <= regM_rf_en_wd;
+
+        // 2. Shift EX -> MEM (Must happen even if ID is flushing!)
+        if(!hz_imul) begin
+            regM_rf_en_wd <= 0;
+            wb_res_sel_M <= 0;
+            mem_en_wd_M <= 0;
+            load_sel_M <= 3'b0;
+            store_sel_M <= 3'b0;
+        end else begin
+            regM_rf_en_wd <= regX_rf_en_wd;
+            wb_res_sel_M  <= regX_wb_res_sel_M;
+            mem_en_wd_M   <= mem_en_wd_X;
+            load_sel_M    <= load_sel_X;
+            store_sel_M   <= store_sel_X;
+        end
+        
+        // 3. Shift ID -> EX (Squash if branch taken or hazard)
+        if(hz_out_X || clear) begin
+            alu_func_sel <= 0;
+            regX_rf_en_wd <= 0;
+            regX_wb_res_sel_M <= 0;
+            regX_is_br_ins <= 0;
+            sr0_valid_X <= 0;
+            sr1_valid_X <= 0;
+            reg_is_jmp_ins <= 0;
+            reg_is_jalr <= 0;
+            mem_en_wd_X <= 0;
+            load_sel_X <= 3'b0;
+            store_sel_X <= 3'b0;
+        end else if(hz_imul) begin
+            alu_func_sel <= reg_alu_func_sel;
+            regX_rf_en_wd <= reg_rf_en_wd;
+            regX_wb_res_sel_M <= reg_wb_res_sel_M;
+            regX_is_br_ins <= reg_is_br_ins;
+            sr0_valid_X <= sr0_valid;
+            sr1_valid_X <= sr1_valid;
+            reg_is_jmp_ins <= is_jmp_ins;
+            reg_is_jalr <= is_jalr;
+            mem_en_wd_X <= mem_en_wd;
+            load_sel_X <= load_sel;
+            store_sel_X <= store_sel;
+        end
+    end
+end
+    
+endmodule
+
+
+
+
+
+======================================================================
+FILE: proc_datapath.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10.06.2026 05:33:18
+// Design Name: 
+// Module Name: proc_datapath
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module proc_datapath(
+    input clk,
+    input reset,
+    input clear,
+    input reg_en_F,                   //pipeline registers
+    input reg_en_D,
+    input reg_en_X,
+    input reg_en_M,
+    input reg_en_W,
+    input pc_sel_F,
+    input mem_en_wd_X,
+    input mem_en_wd_M,
+    input regX_wb_res_sel_M,
+    input operand0_sel_D,
+    input wire[1:0] operand1_sel_D,
+    input wire[2:0] imm_type_D,
+    input wire[4:0] alu_func_sel,
+    input wb_res_sel_M,
+    input rf_enable_wd,
+    input wire[2:0] load_sel_M,
+    input wire[2:0] store_sel_M,
+    output br_con_eq_X,
+    output wire[31:0] ins_cu,
+    output wire hz_out_X,
+    input wire sr0_valid,
+    input wire sr0_valid_X,
+    input wire sr1_valid,
+    input wire sr1_valid_X,
+    input wire reg_is_jmp_ins,
+    input wire reg_is_jalr,
+    input wire reg_rf_en_wd,
+    output wire hz_imul,
+    input wire regX_is_br_ins,
+    output wire actual_taken,
+    output wire predict_taken_X,
+    output wire[31:0] predict_target_X,
+    output wire[31:0] br_target_X_wire
+    );
+    
+    wire[31:0] pc_reg_D_wire, ins_reg_D_wire ;
+    wire[31:0] pc_reg_F_wire, ins_wire, jalr_pc_value_wire;
+    wire hz_reg_F_wire, hz_reg_D_wire, hz_reg_X_wire, flush_delay;
+
+
+    
+
+    reg[31:0] ins_hold; //added after the decode stage was overwritten by the next ins during stalls
+    reg stall_q;
+    wire stall_D = ~(reg_en_D & hz_reg_D_wire);
+    wire [31:0] ins_eff = (stall_q)? ins_hold : ins_reg_D_wire; //ins_eff is the instruction that is actually decoded in the decode stage. It is either the instruction from the instruction memory or the instruction that was held in the ins_hold register during a stall.
+
+    always @(posedge clk) begin
+        if (reset) begin
+            ins_hold <= 32'b0;
+            stall_q <= 1'b0;
+        end
+        else begin
+            stall_q <= stall_D;
+            ins_hold <= ins_wire; //hold the instruction from the instruction memory during a stall
+        end
+    end
+
+    assign ins_wire = ins_eff & {32{~flush_delay}}; //discard ins from bram during flush
+    //could have used a mux to select between ins_wire and addix0, x0, 0 but that would have added an extra delay in the critical path. So, used bitwise AND operation to discard ins from bram during flush.
+    //this ins would hit the default case of control unit, which disables the register write and memory write operations, thus preventing any unwanted writes to the register file or data memory during flush.
+    assign ins_cu = ins_wire; //to be used in control unit for decoding
+    wire predict_taken, predict_taken_D;
+    wire [31:0] predict_target, predict_target_D;
+    wire [1:0] btb_history, btb_history_D, btb_history_X;
+    wire[31:0] pc_reg_X;
+
+    assign actual_taken = !pc_sel_F; //if pc_sel_F is 0, then it is a branch instruction and the branch was taken, else it was not taken. 
+    //no longer using it to select between pc_incr_F and br_target_X, branch predictor does that job now. now used to conclude whether the branch is actually taken or not
+
+    stage_if fetch_stage_inst(
+        .clk(clk),
+        .clear(clear),
+        .reset(reset),
+        .reg_en_F(reg_en_F & hz_reg_F_wire), 
+        .reg_en_D(reg_en_D & hz_reg_D_wire),
+        .pc_sel_F(pc_sel_F),
+        .reg_is_jmp_ins(reg_is_jmp_ins),
+        // .ins(ins_wire),                     //have to instantiate two memory modules
+        .br_target_X(br_target_X_wire),     //one that uses ins_wire, pc_reg_F_wire & another for data
+        .pc_reg_D(pc_reg_D_wire),
+        // .ins_reg_D(ins_reg_D_wire),
+        .pc_reg_F(pc_reg_F_wire),            //instruction memory
+        .jalr_pc_value(jalr_pc_value_wire),
+        .reg_is_jalr(reg_is_jalr),
+        .flush_delay(flush_delay),
+        .predict_taken(predict_taken),
+        .predict_target(predict_target),
+        .btb_history(btb_history),
+        .predict_taken_D(predict_taken_D),
+        .predict_target_D(predict_target_D),
+        .btb_history_D(btb_history_D),
+        .pc_reg_X(pc_reg_X),
+        .actual_taken(!pc_sel_F),
+        .predict_taken_X(predict_taken_X)
+    );
+
+    branch_predictor bp_inst(
+        .clk(clk),
+        .pc_reg_F(pc_reg_F_wire),
+        .predict_taken(predict_taken),
+        .predict_target(predict_target),
+        .btb_history(btb_history),
+        .pc_reg_X(pc_reg_X),
+        .btb_history_X(btb_history_X),
+        .is_branch_X(regX_is_br_ins), //if pc_sel_F is 0, then it is a branch instruction
+        .actual_taken(!pc_sel_F),
+        .actual_target(br_target_X_wire)
+    );
+    
+    wire[4:0] dr_reg_W_wire;        //from dmemory stage
+    wire[4:0] dr_reg_X_wire;
+    wire[31:0] operand0_reg_X_wire, operand1_reg_X_wire, dstore_reg_X_wire, reg_rf_rd0_wire, reg_sign_ext_imm_wire;
+    wire[4:0] sr0_wire, sr1_wire, sr0_reg_X_wire, sr1_reg_X_wire;
+    wire[31:0] rd_mem_wire;
+
+    stage_id decode_stage_inst(
+        .clk(clk),
+        .reset(reset),
+        .clear(clear),
+        .hz_out_X(hz_out_X),
+        .ins(ins_wire),
+        .rf_wd(rd_mem_wire),
+        .rf_enable_wd(rf_enable_wd),
+        .dr(dr_reg_W_wire),        
+        .pc_reg_D(pc_reg_D_wire),
+        .imm_type_D(imm_type_D),
+        .reg_en_X(reg_en_X & hz_reg_X_wire),
+        .operand0_sel_D(operand0_sel_D),
+        .operand1_sel_D(operand1_sel_D),
+        .operand0_reg_X(operand0_reg_X_wire),
+        .operand1_reg_X(operand1_reg_X_wire),
+        .br_target_reg_X(br_target_X_wire),
+        .dr_reg_X(dr_reg_X_wire),
+        .dstore_reg_X(dstore_reg_X_wire),
+        .sr0(sr0_wire),
+        .sr1(sr1_wire),
+        .sr0_reg_X(sr0_reg_X_wire),
+        .sr1_reg_X(sr1_reg_X_wire),
+        .reg_rf_rd0(reg_rf_rd0_wire),
+        .reg_sign_ext_imm(reg_sign_ext_imm_wire),
+        .reg_rf_en_wd(reg_rf_en_wd),
+        .predict_taken_D(predict_taken_D),
+        .predict_target_D(predict_target_D),
+        .btb_history_D(btb_history_D),
+        .predict_taken_X(predict_taken_X),
+        .predict_target_X(predict_target_X),
+        .btb_history_X(btb_history_X),
+        .pc_reg_X(pc_reg_X)
+    );
+    
+    wire[31:0] ex_res_reg_M_wire, dstore_reg_M_wire;
+    wire[4:0] dr_reg_M_wire;
+    wire[1:0] operand0_sel_X_wire, operand1_sel_X_wire, ex_res_reg_sel_M_wire;
+    wire in_imul_computation;
+    
+    stage_ex execute_stage_inst(
+        .clk(clk),
+        .reset(reset),
+        .clear(1'b0),
+        .reg_en_M(reg_en_M & hz_imul),
+        .alu_func_sel(alu_func_sel),
+        .operand0_reg_X(operand0_reg_X_wire),
+        .dstore_reg_X(dstore_reg_X_wire),
+        .operand1_reg_X(operand1_reg_X_wire),
+        .operand0_sel_X(operand0_sel_X_wire),
+        .operand1_sel_X(operand1_sel_X_wire),
+        .rd_mem(ex_res_reg_M_wire),
+        .rd_wb(rd_mem_wire),
+        .dr_reg_X(dr_reg_X_wire),
+        .br_con_eq_X(br_con_eq_X),
+        .ex_res_reg_M(ex_res_reg_M_wire),
+        .dr_reg_M(dr_reg_M_wire),
+        .dstore_reg_M(dstore_reg_M_wire),
+        .reg_rf_rd0(reg_rf_rd0_wire),
+        .reg_sign_ext_imm(reg_sign_ext_imm_wire),
+        .jalr_pc_value(jalr_pc_value_wire),
+        .reg_is_jalr(reg_is_jalr),
+        .mem_en_wd_X(mem_en_wd_X),
+        .ex_res_reg_sel_M(ex_res_reg_sel_M_wire),
+        .in_imul_computation(in_imul_computation)
+    );
+    
+    wire[31:0] mem_rd_wire, dstore_sram;
+    wire[3:0] we;
+    wire[2:0] load_sel_W;
+    wire[31:0] ex_res_reg_W;
+    wire wb_res_sel_W;
+    
+    stage_mem dmemory_stage_inst(
+        .clk(clk),
+        .reset(reset),
+        .clear(1'b0),
+        .ex_res_reg_M(ex_res_reg_M_wire),
+        .wb_res_sel_M(wb_res_sel_M),
+        .reg_en_W(reg_en_W),
+        .dr_reg_M(dr_reg_M_wire),
+        .dr_reg_W(dr_reg_W_wire),
+        .load_sel_M(load_sel_M),
+        .store_sel_M(store_sel_M),
+        .dstore_reg_M(dstore_reg_M_wire),
+        .dstore_sram(dstore_sram),
+        .we(we),
+        .mem_en_wd(mem_en_wd_M),
+        .load_sel_W(load_sel_W),
+        .ex_res_reg_W(ex_res_reg_W),
+        .wb_res_sel_W(wb_res_sel_W)
+    );
+
+    stage_wb writeback_stage_inst(
+        .mem_rd(mem_rd_wire),
+        .ex_res_reg_W(ex_res_reg_W),
+        .load_sel_W(load_sel_W),
+        .wb_res_sel_W(wb_res_sel_W),
+        .rd_mem(rd_mem_wire)
+    );
+        
+    hazard_unit hazard_unit_inst(
+        .mem_rd(regX_wb_res_sel_M),
+        .sr0(sr0_wire),
+        .sr1(sr1_wire),
+        .sr0_reg_X(sr0_reg_X_wire),
+        .sr1_reg_X(sr1_reg_X_wire),
+        .dr_reg_X(dr_reg_X_wire),
+        .dr_reg_M(dr_reg_M_wire),
+        .dr_reg_W(dr_reg_W_wire),
+        .operand0_sel_X(operand0_sel_X_wire),
+        .operand1_sel_X(operand1_sel_X_wire),
+        .hz_reg_F(hz_reg_F_wire),
+        .hz_reg_D(hz_reg_D_wire),
+        .hz_reg_X(hz_reg_X_wire),
+        .hz_out_X(hz_out_X),
+        .sr0_valid(sr0_valid),
+        .sr1_valid(sr1_valid),
+        .sr0_valid_X(sr0_valid_X),
+        .sr1_valid_X(sr1_valid_X),
+        .mem_en_wd_X(mem_en_wd_X),
+        .ex_res_reg_sel_M(ex_res_reg_sel_M_wire),
+        .in_imul_computation(in_imul_computation),
+        .hz_imul(hz_imul),
+        .wb_res_sel_M(wb_res_sel_M)
+    );
+    
+    sram mem_inst_1(                         //data memory
+        .clk(clk),
+        .mem_address(ex_res_reg_M_wire),
+        .mem_wd(dstore_sram),
+        .we(we),
+        .mem_rd(mem_rd_wire)
+    );
+    
+    sram mem_inst_2(                         //instruction memory
+        .clk(clk),
+        .mem_address(pc_reg_F_wire),
+        .mem_wd(32'b0),
+        .we(4'b0),
+        .mem_rd(ins_reg_D_wire)
+    );
+    
+endmodule
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+======================================================================
+FILE: proc_top.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 15.06.2026 00:50:18
+// Design Name: 
+// Module Name: proc_top
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module proc_top(
+    input clk,
+    input reset
+    );
+    
+    wire en_F, en_D, en_X, en_M, en_W;
+    wire pc_sel_F, mem_en_wd_X_wire, mem_en_wd_M_wire, rf_en_wd, operand0_sel_D, wb_res_sel_M, clear;
+    wire[1:0] operand1_sel_D;
+    wire[2:0] imm_type_D;
+    wire[4:0] alu_func_sel;
+    wire reg_rf_en_wd_wire;
+    wire[31:0] ins;
+    wire br_con_eq_X;
+    wire hz_out_X_wire;
+    wire regX_wb_res_sel_M_wire;
+    wire sr1_valid, sr1_valid_X, sr0_valid, sr0_valid_X, reg_is_jmp_ins_wire, reg_is_jalr_wire;
+    wire hz_imul;
+    wire [2:0] load_sel_M, store_sel_M;
+    wire regX_is_br_ins;
+    wire actual_taken, predict_taken_X;
+    wire [31:0] predict_target_X, br_target_X_wire;
+    
+    proc_control control_unit_inst(
+        .clk(clk),
+        .reset(reset),
+        .ins(ins),
+        .br_con_eq_X(br_con_eq_X),
+        .hz_out_X(hz_out_X_wire),
+        .clear(clear),
+        .reg_en_F(en_F),
+        .reg_en_D(en_D),
+        .reg_en_X(en_X),
+        .reg_en_M(en_M),
+        .reg_en_W(en_W),
+        .pc_sel_F(pc_sel_F),
+        .mem_en_wd_X(mem_en_wd_X_wire),
+        .mem_en_wd_M(mem_en_wd_M_wire),
+        .rf_en_wd(rf_en_wd),
+        .operand0_sel_D(operand0_sel_D),
+        .operand1_sel_D(operand1_sel_D),
+        .imm_type_D(imm_type_D),
+        .alu_func_sel(alu_func_sel),
+        .wb_res_sel_M(wb_res_sel_M),
+        .regX_wb_res_sel_M(regX_wb_res_sel_M_wire),
+        .sr0_valid(sr0_valid),
+        .sr1_valid(sr1_valid),
+        .sr0_valid_X(sr0_valid_X),
+        .sr1_valid_X(sr1_valid_X),
+        .reg_is_jmp_ins(reg_is_jmp_ins_wire),
+        .reg_is_jalr(reg_is_jalr_wire),
+        .reg_rf_en_wd(reg_rf_en_wd_wire),
+        .hz_imul(hz_imul),
+        .load_sel_M(load_sel_M),
+        .store_sel_M(store_sel_M),
+        .regX_is_br_ins(regX_is_br_ins),
+        .actual_taken(actual_taken),
+        .predict_taken_X(predict_taken_X),
+        .predict_target_X(predict_target_X),
+        .br_target_X_wire(br_target_X_wire)
+    );
+    
+    proc_datapath datapath_inst(
+        .clk(clk),
+        .reset(reset),
+        .clear(clear),
+        .reg_en_F(en_F),
+        .reg_en_D(en_D),
+        .reg_en_X(en_X),
+        .reg_en_M(en_M),
+        .reg_en_W(en_W),
+        .pc_sel_F(pc_sel_F),
+        .mem_en_wd_X(mem_en_wd_X_wire),
+        .mem_en_wd_M(mem_en_wd_M_wire),
+        .operand0_sel_D(operand0_sel_D),
+        .operand1_sel_D(operand1_sel_D),
+        .imm_type_D(imm_type_D),
+        .alu_func_sel(alu_func_sel),
+        .wb_res_sel_M(wb_res_sel_M),
+        .rf_enable_wd(rf_en_wd),
+        .br_con_eq_X(br_con_eq_X),
+        .ins_cu(ins),
+        .hz_out_X(hz_out_X_wire),
+        .regX_wb_res_sel_M(regX_wb_res_sel_M_wire),
+        .sr0_valid(sr0_valid),
+        .sr1_valid(sr1_valid),
+        .sr0_valid_X(sr0_valid_X),
+        .sr1_valid_X(sr1_valid_X),
+        .reg_is_jmp_ins(reg_is_jmp_ins_wire),
+        .reg_is_jalr(reg_is_jalr_wire),
+        .reg_rf_en_wd(reg_rf_en_wd_wire),
+        .hz_imul(hz_imul),
+        .load_sel_M(load_sel_M),
+        .store_sel_M(store_sel_M),
+        .is_branch_X(regX_is_br_ins),
+        .actual_taken(actual_taken),
+        .predict_taken_X(predict_taken_X),
+        .predict_target_X(predict_target_X),
+        .br_target_X_wire(br_target_X_wire)
+    );
+    
+endmodule
+
+
+
+
+
+
+
+======================================================================
+FILE: regfile.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10.06.2026 06:04:39
+// Design Name: 
+// Module Name: regfile
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module regfile(
+    input clk,
+    input wire[4:0] sr0,      //sr - source register address
+    input wire[4:0] sr1,
+    input wire[4:0] dr,       //dr - destination register address
+    input wire rf_enable_wd,
+    input wire[31:0] rf_wd,   //wd - write data
+    output wire[31:0] rf_rd0, //rf - read data
+    output wire[31:0] rf_rd1
+    );
+    
+    
+    reg[31:0] register_file[31:0];
+ 
+    always @(posedge clk) begin
+        if(rf_enable_wd & |dr) register_file[dr] <= rf_wd;
+    end
+    assign rf_rd0 = (sr0 == 0)? 0 : ((rf_enable_wd && (dr == sr0))? rf_wd : register_file[sr0]);
+    assign rf_rd1 = (sr1 == 0)? 0 : ((rf_enable_wd && (dr == sr1))? rf_wd : register_file[sr1]);
+    
+endmodule
+
+
+
+
+
+
+
+
+
+
+======================================================================
+FILE: sram.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 10.06.2026 18:41:53
+// Design Name: 
+// Module Name: sram
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module sram(
+    input clk,
+    input wire[31:0] mem_address,
+    input wire[31:0] mem_wd ,        //memory write data
+    input wire[3:0] we,              //write enable
+    output reg[31:0] mem_rd
+    );
+    
+    reg[31:0] memory[1023:0];
+    always @(posedge clk) begin
+        mem_rd <= memory[mem_address >> 2];
+        if(we[0]) memory[mem_address >> 2][7:0] <= mem_wd[7:0];
+        if(we[1]) memory[mem_address >> 2][15:8] <= mem_wd[15:8];
+        if(we[2]) memory[mem_address >> 2][23:16] <= mem_wd[23:16];
+        if(we[3]) memory[mem_address >> 2][31:24] <= mem_wd[31:24];
+    end
+    
+endmodule
+
+
+======================================================================
+FILE: stage_ex.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11.06.2026 23:56:18
+// Design Name: 
+// Module Name: stage_ex
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module stage_ex(
+    input clk,
+    input reset,
+    input clear,
+    input wire reg_en_M,
+    input wire[4:0] alu_func_sel,
+    input wire[31:0] operand0_reg_X,
+    input wire[31:0] dstore_reg_X,
+    input wire[31:0] operand1_reg_X,
+    input wire[1:0] operand0_sel_X,
+    input wire[1:0] operand1_sel_X,
+    input wire[31:0] rd_mem,
+    input wire[31:0] rd_wb,
+    input wire[4:0] dr_reg_X,
+    output wire br_con_eq_X,
+    output reg[31:0] ex_res_reg_M,
+    output reg[4:0] dr_reg_M,
+    output reg[31:0] dstore_reg_M,
+    input wire[31:0] reg_sign_ext_imm,
+    output wire[31:0] jalr_pc_value,
+    input wire[31:0] reg_rf_rd0,
+    input reg_is_jalr,
+    input mem_en_wd_X,
+    input wire[1:0] ex_res_reg_sel_M,
+    output wire in_imul_computation
+    );
+    
+    wire[31:0] result, fwd_rd0;
+    reg[31:0] alu_operand0_val, alu_operand1_val;
+    
+    assign fwd_rd0 = (operand0_sel_X == 2'd1)? rd_mem :
+                     (operand0_sel_X == 2'd2)? rd_wb  :
+                      reg_rf_rd0;
+                      
+    assign jalr_pc_value = (fwd_rd0 + reg_sign_ext_imm) & 32'hFFFFFFFE;      
+    
+    always @(*) begin
+        if(reg_is_jalr) begin
+            alu_operand0_val = operand0_reg_X;
+        end
+        else begin
+            case(operand0_sel_X)
+                2'd0 : alu_operand0_val = operand0_reg_X;
+                2'd1 : alu_operand0_val = rd_mem;
+                2'd2 : alu_operand0_val = rd_wb;
+                default : alu_operand0_val = operand0_reg_X;
+            endcase
+        end
+        
+        case(operand1_sel_X)
+            2'd0 : alu_operand1_val = operand1_reg_X;
+            2'd1 : alu_operand1_val = rd_mem;
+            2'd2 : alu_operand1_val = rd_wb;
+            default : alu_operand1_val = operand1_reg_X;
+        endcase
+    end
+    
+    
+    alu alu_inst(
+        .operand0(alu_operand0_val),
+        .operand1(alu_operand1_val),
+        .alu_func_sel(alu_func_sel),
+        .result(result),
+        .br_con_eq_X(br_con_eq_X)
+    );
+
+    wire istream_val, istream_rdy, ostream_val;
+    wire [31:0] ostream_msg;
+    reg signal_X;
+
+    assign istream_val = (alu_func_sel == 5'd11 && !signal_X)? 1'b1 : 1'b0;
+    assign in_imul_computation = ((istream_val | signal_X) & !ostream_val)? (istream_val | signal_X) : 1'b0;
+    
+
+    imul_top imul_inst(
+        .clk(clk),
+        .rst(reset),
+        .istream_msg({alu_operand0_val, alu_operand1_val}),
+        .istream_val(istream_val),
+        .istream_rdy(istream_rdy),
+        .ostream_msg(ostream_msg),
+        .ostream_val(ostream_val),
+        .ostream_rdy(1'b1)
+    );
+
+
+    
+    always @(posedge clk) begin
+       
+        signal_X <= (istream_val)? 1'b1 : (ostream_val)? 1'b0 : signal_X;
+
+        if(reset | clear) begin
+                            ex_res_reg_M <= 32'b0;
+                            dr_reg_M <=5'b0;
+                            dstore_reg_M <= 32'b0;
+                            signal_X <= 1'b0;
+                          end
+
+
+        else begin
+                ex_res_reg_M <= (reg_en_M)? ((ostream_val)? ostream_msg : result) : ex_res_reg_M;
+                dr_reg_M <= (reg_en_M)? dr_reg_X : 5'd0;
+                dstore_reg_M <= (!reg_en_M)? dstore_reg_M :
+                                (ex_res_reg_sel_M == 2'd1)? rd_mem :
+                                (ex_res_reg_sel_M == 2'd2)? rd_wb  :
+                                 dstore_reg_X;
+             end
+    end
+        
+endmodule
+
+
+
+
+
+
+======================================================================
+FILE: stage_id.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11.06.2026 08:46:58
+// Design Name: 
+// Module Name: stage_id
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module stage_id(
+    input clk,
+    input reset,
+    input clear,
+    input wire hz_out_X,
+    input wire[31:0] ins,
+    input wire[31:0] rf_wd,
+    input wire rf_enable_wd,
+    input wire reg_rf_en_wd,
+    input wire[4:0] dr,
+    input wire[31:0] pc_reg_D,
+    input wire[2:0] imm_type_D,
+    input reg_en_X,
+    input operand0_sel_D,
+    input wire[1:0] operand1_sel_D,
+    output reg[31:0] operand0_reg_X,
+    output reg[31:0] operand1_reg_X,
+    output reg[31:0] reg_rf_rd0,
+    output reg[31:0] br_target_reg_X,
+    output reg[4:0] dr_reg_X,
+    output reg[31:0] dstore_reg_X,
+    output wire[4:0] sr0,
+    output wire[4:0] sr1,
+    output reg[4:0] sr0_reg_X,
+    output reg[4:0] sr1_reg_X,
+    output reg[31:0] reg_sign_ext_imm,
+    input wire predict_taken_D,
+    input wire[31:0] predict_target_D,
+    input wire[1:0] btb_history_D,
+    output reg predict_taken_X,
+    output reg[31:0] predict_target_X,
+    output reg[1:0] btb_history_X,
+    output reg[31:0] pc_reg_X
+    );
+    
+    wire[31:0] pc_plus_imm_D, rf_rd0, rf_rd1, sign_ext_imm_D;
+    wire[31:0] operand0_sel_mux_D;
+    reg[31:0]  operand1_sel_mux_D;
+    
+    assign sr0 = ins[19:15];
+    assign sr1 = ins[24:20];
+    
+    always @(posedge clk) begin
+        if(reset | clear | hz_out_X) begin
+                    operand0_reg_X  <= 32'b0;
+                    operand1_reg_X  <= 32'b0;
+                    br_target_reg_X <= 32'b0;
+                    dstore_reg_X    <= 32'b0;
+                    dr_reg_X        <= 5'b0;
+                    sr0_reg_X       <= 5'b0;
+                    sr1_reg_X       <= 5'b0;
+                    reg_sign_ext_imm    <= 32'b0;
+                    reg_rf_rd0      <= 32'b0;
+
+                    predict_taken_X <= 1'b0;
+                    predict_target_X <= 32'b0;
+                    btb_history_X <= 2'b0;
+                    pc_reg_X <= 32'b0;
+                  end
+                  
+        else begin
+            operand0_reg_X  <= (reg_en_X)? operand0_sel_mux_D : operand0_reg_X;
+            operand1_reg_X  <= (reg_en_X)? operand1_sel_mux_D : operand1_reg_X;
+            reg_sign_ext_imm <= (reg_en_X)? sign_ext_imm_D : reg_sign_ext_imm;
+            br_target_reg_X <= (reg_en_X)? pc_plus_imm_D : br_target_reg_X; 
+            //dr_reg_X        <= (reg_en_X)? ins[11:7] : 5'b0;
+            dr_reg_X        <= (reg_en_X)? (reg_rf_en_wd? ins[11:7] : 5'b0) : dr_reg_X;
+            dstore_reg_X    <= (reg_en_X)? rf_rd1 : dstore_reg_X;
+            sr0_reg_X       <= (reg_en_X)? sr0 : sr0_reg_X;
+            sr1_reg_X       <= (reg_en_X)? sr1 : sr1_reg_X;
+            reg_rf_rd0      <= (reg_en_X)? rf_rd0 : reg_rf_rd0;
+
+            //for transferring the branch predictor result to execute stage
+            predict_taken_X <= (reg_en_X)? predict_taken_D : predict_taken_X;
+            predict_target_X <= (reg_en_X)? predict_target_D : predict_target_X;
+            btb_history_X <= (reg_en_X)? btb_history_D : btb_history_X;
+            pc_reg_X <= (reg_en_X)? pc_reg_D : pc_reg_X;
+        end
+    end
+    
+    regfile rf_inst(
+        .clk(clk),
+        .sr0(ins[19:15]),
+        .sr1(ins[24:20]),
+        .dr(dr),
+        .rf_enable_wd(rf_enable_wd),
+        .rf_wd(rf_wd),
+        .rf_rd0(rf_rd0),
+        .rf_rd1(rf_rd1)
+    );
+    
+    imm_gen immgen_inst(
+        .ins(ins),
+        .imm_type_D(imm_type_D),
+        .sign_ext_imm_D(sign_ext_imm_D)
+    );
+    
+    assign operand0_sel_mux_D = (operand0_sel_D)? pc_reg_D : rf_rd0;
+    //assign operand1_sel_mux_D = (operand1_sel_D)? sign_ext_imm_D : rf_rd1;
+    always @(*) begin
+        case(operand1_sel_D)
+            2'd0 : operand1_sel_mux_D = rf_rd1;
+            2'd1 : operand1_sel_mux_D = sign_ext_imm_D;
+            2'd3 : operand1_sel_mux_D = 32'd4;
+            default :  operand1_sel_mux_D = rf_rd1;
+        endcase
+    end
+    
+    assign pc_plus_imm_D = sign_ext_imm_D + pc_reg_D;
+    
+endmodule
+
+
+
+
+
+
+
+
+
+======================================================================
+FILE: stage_if.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 11.06.2026 08:43:50
+// Design Name: 
+// Module Name: stage_if
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module stage_if(
+    input clk,
+    input clear,
+    input reset,
+    input reg_en_F, 
+    input reg_en_D,
+    input pc_sel_F,
+    input reg_is_jmp_ins,
+    input reg_is_jalr,
+    // input wire[31:0] ins,
+    input wire[31:0] br_target_X,
+    output reg[31:0] pc_reg_D,
+    // output reg[31:0] ins_reg_D, before synchronous ram
+    output reg[31:0] pc_reg_F,
+    input wire[31:0] jalr_pc_value,
+    output reg flush_delay //to discard ins from bram during flush,
+    
+    //from branch predictor
+    input wire predict_taken,
+    input wire[31:0] predict_target,
+    input wire[1:0] btb_history,
+    output reg predict_taken_D,
+    output reg[31:0] predict_target_D,
+    output reg[1:0] btb_history_D,
+
+    //bp result from execute stage
+    input wire[31:0] pc_reg_X,
+    input wire actual_taken,
+    input wire predict_taken_X
+    );
+
+    
+    wire[31:0] pc_incr_F;
+    reg[31:0] pc_next_F;
+    
+    always @(posedge clk) begin
+        if(reset) begin
+                    pc_reg_F  <= 32'b0;
+                    pc_reg_D  <= 32'b0;
+                    // ins_reg_D <= 32'b0;
+                    flush_delay <= 1'b1;
+                    predict_taken_D <= 1'b0;
+                    predict_target_D <= 32'b0;
+                    btb_history_D <= 2'b0;
+                  end
+        else if (clear) begin
+                            pc_reg_D  <= 32'b0;
+                            // ins_reg_D <= 32'b0;
+                            pc_reg_F <= (reg_en_F)? pc_next_F : pc_reg_F;
+                            flush_delay <= 1'b1;
+                            predict_taken_D <= 1'b0;
+                            predict_target_D <= 32'b0;
+                            btb_history_D <= 2'b0;
+
+                        end         
+        else begin
+                pc_reg_F <= (reg_en_F)? pc_next_F : pc_reg_F;
+                pc_reg_D <= (reg_en_D)? pc_reg_F : pc_reg_D;
+                // ins_reg_D <= (reg_en_D)? ins : ins_reg_D;
+                flush_delay <= 1'b0;
+                predict_taken_D <= (reg_en_D)? predict_taken : predict_taken_D;
+                predict_target_D <= (reg_en_D)? predict_target : predict_target_D;
+                btb_history_D <= (reg_en_D)? btb_history : btb_history_D;
+             end
+    end
+    
+    assign pc_incr_F = pc_reg_F + 32'd4;
+    //always @(*) pc_next_F = (pc_sel_F)? pc_incr_F : br_target_X; //sel is 0 for branch
+    always @(*) begin
+        if(reg_is_jmp_ins & reg_is_jalr) pc_next_F = jalr_pc_value;
+        //else pc_next_F = (pc_sel_F)? pc_incr_F : br_target_X;
+        else begin
+            if(clear) pc_next_F = ({predict_taken_X, actual_taken} == 2'b10)? pc_reg_X + 32'd4 : br_target_X;
+            else pc_next_F = (predict_taken)? predict_target : pc_incr_F;
+        end
+    end
+    
+endmodule
+
+
+======================================================================
+FILE: stage_mem.v
+======================================================================
+
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12.06.2026 01:49:09
+// Design Name: 
+// Module Name: stage_mem
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module stage_mem(
+    input clk,
+    input reset,
+    input clear,
+    input wire[31:0] ex_res_reg_M,
+    input wire wb_res_sel_M,    //can also be used for identifing if ins is load
+    input wire reg_en_W,
+    input wire[4:0] dr_reg_M,
+    input wire[2:0] load_sel_M,
+    input wire[2:0] store_sel_M,
+    input wire[31:0] dstore_reg_M,
+    output reg[4:0] dr_reg_W,
+    //output reg[31:0] wb_res_reg_W,
+    output reg[31:0] dstore_sram,
+    output reg[3:0] we,
+    output reg[2:0] load_sel_W,
+    output reg[31:0] ex_res_reg_W,
+    output reg wb_res_sel_W,
+    input mem_en_wd
+    );
+
+    //rd_mem = forward the result of M stage to X stage
+    //mem_rd = 32 bit data coming out of SRAM
+    
+    //wire[31:0] wb_res_wire_W;
+    // assign wb_res_wire_W = (wb_res_sel_M)? mem_rd_signext : ex_res_reg_M;
+    // assign rd_mem = wb_res_wire_W;
+
+    always @(*) begin
+
+        case({mem_en_wd,store_sel_M})
+            4'b1010: we = 4'b1111; //sw
+            4'b1000: we = (ex_res_reg_M[1:0] == 2'b00)? 4'b0001 :
+                          (ex_res_reg_M[1:0] == 2'b01)? 4'b0010 :
+                          (ex_res_reg_M[1:0] == 2'b10)? 4'b0100 :
+                          4'b1000; //sb
+            4'b1001: we = (ex_res_reg_M[1] == 1'b0)? 4'b0011 : 4'b1100; //sh
+            default: we = 4'b0000;
+        endcase
+
+        case(we)
+            4'b0001: dstore_sram = dstore_reg_M;
+            4'b0010: dstore_sram = dstore_reg_M << 8;
+            4'b0100: dstore_sram = dstore_reg_M << 16;
+            4'b1000: dstore_sram = dstore_reg_M << 24;
+            4'b1111: dstore_sram = dstore_reg_M;
+            4'b0011: dstore_sram = dstore_reg_M;
+            4'b1100: dstore_sram = dstore_reg_M << 16;
+            default: dstore_sram = 32'b0;
+        endcase
+    end
+    
+    
+    always @(posedge clk) begin
+        if(reset | clear) begin
+                            //wb_res_reg_W <= 32'b0;
+                            dr_reg_W <= 5'b0;
+                            load_sel_W <= 3'b0;
+                            ex_res_reg_W <= 32'b0;
+                            wb_res_sel_W <= 1'b0;
+                          end
+        else begin
+                //wb_res_reg_W <= (reg_en_W)? wb_res_wire_W : wb_res_reg_W;
+                dr_reg_W <= (reg_en_W)? dr_reg_M : dr_reg_W;
+                load_sel_W <= (reg_en_W)? load_sel_M : load_sel_W;
+                ex_res_reg_W <= (reg_en_W)? ex_res_reg_M : ex_res_reg_W;
+                wb_res_sel_W <= (reg_en_W)? wb_res_sel_M : wb_res_sel_W;
+             end
+    end
+    
+    
+endmodule
+
+
+======================================================================
+FILE: stage_wb.v
+======================================================================
+
+module stage_wb(
+    input wire[31:0] mem_rd, //coming from sram
+    input wire[31:0] ex_res_reg_W, //coming from M stage (alu result)
+    input wire[2:0] load_sel_W,
+    input wire wb_res_sel_W, //to identify between load and alu result (if 1, fw data from mem_rd, if 0 fw data from wb_res_reg_W)
+    output reg[31:0] rd_mem
+);
+    reg[31:0] mem_rd_signext;
+    wire[7:0] mem_rd_selector_b;
+    wire[15:0] mem_rd_selector_h;
+
+    assign mem_rd_selector_b = (ex_res_reg_W[1:0] == 2'b00)? mem_rd[7:0] :
+                               (ex_res_reg_W[1:0] == 2'b01)? mem_rd[15:8] :
+                               (ex_res_reg_W[1:0] == 2'b10)? mem_rd[23:16] :
+                               mem_rd[31:24];
+
+    //risc-v is little endian
+    assign mem_rd_selector_h = (ex_res_reg_W[1] == 1'b0)? mem_rd[15:0] : mem_rd[31:16];
+
+    always @(*) begin
+        case(load_sel_W)
+            3'b000: mem_rd_signext = {{24{mem_rd_selector_b[7]}}, mem_rd_selector_b}; //lb
+            3'b001: mem_rd_signext = {{16{mem_rd_selector_h[15]}}, mem_rd_selector_h}; //lh
+            3'b010: mem_rd_signext = mem_rd; //lw
+            3'b100: mem_rd_signext = {24'b0, mem_rd_selector_b}; //lbu
+            3'b101: mem_rd_signext = {16'b0, mem_rd_selector_h}; //lhu
+            default: mem_rd_signext = 32'b0;
+        endcase
+
+        if(wb_res_sel_W) rd_mem = mem_rd_signext;
+        else rd_mem = ex_res_reg_W;
+    end
+
+endmodule

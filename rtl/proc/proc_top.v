@@ -76,7 +76,7 @@ module proc_top(
         .store_sel_M(store_sel_M),
         .regX_is_br_ins(regX_is_br_ins),
         .actual_taken(actual_taken),
-        .predict_taken_X(predit_taken_X),
+        .predict_taken_X(predict_taken_X),
         .predict_target_X(predict_target_X),
         .br_target_X_wire(br_target_X_wire)
     );
@@ -115,7 +115,7 @@ module proc_top(
         .store_sel_M(store_sel_M),
         .is_branch_X(regX_is_br_ins),
         .actual_taken(actual_taken),
-        .predict_taken_X(predit_taken_X),
+        .predict_taken_X(predict_taken_X),
         .predict_target_X(predict_target_X),
         .br_target_X_wire(br_target_X_wire)
     );

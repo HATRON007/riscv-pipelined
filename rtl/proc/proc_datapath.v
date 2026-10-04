@@ -91,6 +91,9 @@ module proc_datapath(
     wire [1:0] btb_history, btb_history_D, btb_history_X;
     wire[31:0] pc_reg_X;
 
+    assign actual_taken = !pc_sel_F; //if pc_sel_F is 0, then it is a branch instruction and the branch was taken, else it was not taken. 
+    //no longer using it to select between pc_incr_F and br_target_X, branch predictor does that job now. now used to conclude whether the branch is actually taken or not
+
     stage_if fetch_stage_inst(
         .clk(clk),
         .clear(clear),
@@ -114,7 +117,7 @@ module proc_datapath(
         .predict_target_D(predict_target_D),
         .btb_history_D(btb_history_D),
         .pc_reg_X(pc_reg_X),
-        .actual_taken(actual_taken),
+        .actual_taken(!pc_sel_F),
         .predict_taken_X(predict_taken_X)
     );
 
