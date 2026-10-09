@@ -56,7 +56,8 @@ module proc_datapath(
     output wire actual_taken,
     output wire predict_taken_X,
     output wire[31:0] predict_target_X,
-    output wire[31:0] br_target_X_wire
+    output wire[31:0] br_target_X_wire,
+    output reg[31:0] dbg_wb
     );
     
     wire[31:0] pc_reg_D_wire, ins_reg_D_wire ;
@@ -140,6 +141,8 @@ module proc_datapath(
     wire[4:0] sr0_wire, sr1_wire, sr0_reg_X_wire, sr1_reg_X_wire;
     wire[31:0] rd_mem_wire;
 
+    always @(posedge clk) dbg_wb <= rd_mem_wire;
+    
     stage_id decode_stage_inst(
         .clk(clk),
         .reset(reset),
@@ -275,7 +278,7 @@ module proc_datapath(
         .mem_rd(mem_rd_wire)
     );
     
-    sram mem_inst_2(                         //instruction memory
+    sram #(.INIT_FILE("prog.mem")) mem_inst_2(                         //instruction memory
         .clk(clk),
         .mem_address(pc_reg_F_wire),
         .mem_wd(32'b0),

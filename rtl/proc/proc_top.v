@@ -22,7 +22,8 @@
 
 module proc_top(
     input clk,
-    input reset
+    input reset,
+    output [31:0] dbg_wb
     );
     
     wire en_F, en_D, en_X, en_M, en_W;
@@ -117,7 +118,8 @@ module proc_top(
         .actual_taken(actual_taken),
         .predict_taken_X(predict_taken_X),
         .predict_target_X(predict_target_X),
-        .br_target_X_wire(br_target_X_wire)
+        .br_target_X_wire(br_target_X_wire),
+        .dbg_wb(dbg_wb)
     );
     
 endmodule

@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module sram(
+module sram #(parameter INIT_FILE = "")(
     input clk,
     input wire[31:0] mem_address,
     input wire[31:0] mem_wd ,        //memory write data
@@ -32,9 +32,8 @@ module sram(
     reg[31:0] memory[1023:0];
     integer i;
     initial begin
-        for(i=0; i<1024; i=i+1) begin
-            memory[i] = 32'b0;
-        end
+        for(i=0; i<1024; i=i+1) memory[i] = 32'b0;
+        if(INIT_FILE != "") $readmemh(INIT_FILE, memory);
     end
     
     always @(posedge clk) begin

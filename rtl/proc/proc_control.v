@@ -75,9 +75,11 @@ module proc_control(
     reg[2:0] load_sel, load_sel_X; 
     reg[2:0] store_sel, store_sel_X; 
 
+    
     assign pc_sel_F = (reg_is_jmp_ins)? 0 : (regX_is_br_ins && !hz_out_X && br_con_eq_X) ? 1'b0 : 1'b1;
+    wire actual_taken_int = ~pc_sel_F;
     // assign clear    = ((regX_is_br_ins && !hz_out_X) || reg_is_jmp_ins )? (br_con_eq_X | reg_is_jmp_ins) : 0;
-    assign clear    = (!hz_out_X && (actual_taken ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && regX_is_br_ins && (predict_target_X != br_target_X_wire ) && actual_taken && predict_taken_X) || (predict_taken_X && !regX_is_br_ins));
+    assign clear    = (!hz_out_X && (actual_taken_int ^ predict_taken_X) && regX_is_br_ins || reg_is_jmp_ins || (!hz_out_X && regX_is_br_ins && (predict_target_X != br_target_X_wire ) && actual_taken_int && predict_taken_X) || (predict_taken_X && !regX_is_br_ins));
 
     always @(*) begin
         reg_en_F = 1;

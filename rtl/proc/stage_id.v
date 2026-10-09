@@ -62,8 +62,9 @@ module stage_id(
     assign sr0 = ins[19:15];
     assign sr1 = ins[24:20];
     
+    (* max_fanout = 32 *) wire flush_id = reset | clear | hz_out_X;
     always @(posedge clk) begin
-        if(reset | clear | hz_out_X) begin
+        if(flush_id) begin
                     operand0_reg_X  <= 32'b0;
                     operand1_reg_X  <= 32'b0;
                     br_target_reg_X <= 32'b0;
