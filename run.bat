@@ -5,7 +5,7 @@ echo ==================================================
 
 :: Windows cmd.exe cannot expand wildcards (*.v) for Icarus Verilog.
 :: We list all files explicitly so Windows knows exactly what to compile:
-iverilog -o sim/sim.out ^
+iverilog -o tb/sim.out ^
   rtl/imul/imul_control.v ^
   rtl/imul/imul_counter.v ^
   rtl/imul/imul_datapath.v ^
@@ -24,7 +24,7 @@ iverilog -o sim/sim.out ^
   rtl/proc/stage_mem.v ^
   rtl/proc/stage_wb.v ^
   rtl/proc/branch_predictor.v ^
-  tb/tb_predictor.v
+  tb/tb_core.v
 
 :: Check if compilation failed
 if %errorlevel% neq 0 (
@@ -39,7 +39,7 @@ echo [2/3] Running Simulation...
 echo ==================================================
 
 :: Run the compiled simulation
-vvp sim/sim.out
+vvp tb/sim.out
 
 echo.
 echo ==================================================

@@ -28,11 +28,11 @@ module sram #(parameter INIT_FILE = "")(
     output reg[31:0] mem_rd
     );
     
-
-    reg[31:0] memory[1023:0];
+    //32KB memory
+    reg[31:0] memory[0:8191];
     integer i;
     initial begin
-        for(i=0; i<1024; i=i+1) memory[i] = 32'b0;
+        for(i=0; i<8191; i=i+1) memory[i] = 32'b0;
         if(INIT_FILE != "") $readmemh(INIT_FILE, memory);
     end
     

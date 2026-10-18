@@ -1,4 +1,4 @@
-module branch_predictor(
+module branch_predictor #(parameter bp_on = 1)(
     input clk,
 
     input wire[31:0] pc_reg_F,
@@ -42,7 +42,7 @@ module branch_predictor(
     assign btb_history = btb_rd[1:0];
 
 
-    wire tag_match = (pc_reg_F[31:10] == btb_tag);
+    wire tag_match = (bp_on)? (pc_reg_F[31:10] == btb_tag) : 1'b0;
     assign predict_taken = (btb_valid & tag_match & (btb_history[1] == 1'b1));
     assign predict_target = btb_target;
 

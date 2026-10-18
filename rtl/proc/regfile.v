@@ -33,7 +33,9 @@ module regfile(
     
     
     reg[31:0] register_file[31:0];
- 
+    integer i;
+    initial for(i=0; i<32; i=i+1) register_file[i] = 32'b0;
+
     always @(posedge clk) begin
         if(rf_enable_wd & |dr) register_file[dr] <= rf_wd;
     end
