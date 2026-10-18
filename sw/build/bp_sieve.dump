@@ -1,0 +1,87 @@
+
+build/bp_sieve.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+00000000 <_start>:
+   0:	00001197          	auipc	gp,0x1
+   4:	93018193          	addi	gp,gp,-1744 # 930 <__global_pointer$>
+   8:	00008117          	auipc	sp,0x8
+   c:	fe810113          	addi	sp,sp,-24 # 7ff0 <__stack_top>
+  10:	00000297          	auipc	t0,0x0
+  14:	12028293          	addi	t0,t0,288 # 130 <composite>
+  18:	00000317          	auipc	t1,0x0
+  1c:	51830313          	addi	t1,t1,1304 # 530 <__bss_end>
+  20:	0062f863          	bgeu	t0,t1,30 <_start+0x30>
+  24:	0002a023          	sw	zero,0(t0)
+  28:	00428293          	addi	t0,t0,4
+  2c:	ff5ff06f          	jal	zero,20 <_start+0x20>
+  30:	00000097          	auipc	ra,0x0
+  34:	00c080e7          	jalr	ra,12(ra) # 3c <main>
+
+00000038 <_halt>:
+  38:	0000006f          	jal	zero,38 <_halt>
+
+0000003c <main>:
+  3c:	ff010113          	addi	sp,sp,-16
+  40:	00812623          	sw	s0,12(sp)
+  44:	000003b7          	lui	t2,0x0
+  48:	00000437          	lui	s0,0x0
+  4c:	000002b7          	lui	t0,0x0
+  50:	00000337          	lui	t1,0x0
+  54:	00008fb7          	lui	t6,0x8
+  58:	13040413          	addi	s0,s0,304 # 130 <composite>
+  5c:	13238393          	addi	t2,t2,306 # 132 <composite+0x2>
+  60:	13428293          	addi	t0,t0,308 # 134 <composite+0x4>
+  64:	53030313          	addi	t1,t1,1328 # 530 <__bss_end>
+  68:	ff0f8f93          	addi	t6,t6,-16 # 7ff0 <__stack_top>
+  6c:	00300f13          	addi	t5,zero,3
+  70:	00000e93          	addi	t4,zero,0
+  74:	00100893          	addi	a7,zero,1
+  78:	3ff00513          	addi	a0,zero,1023
+  7c:	40000e13          	addi	t3,zero,1024
+  80:	00040793          	addi	a5,s0,0
+  84:	00078023          	sb	zero,0(a5)
+  88:	00178793          	addi	a5,a5,1
+  8c:	fe679ce3          	bne	a5,t1,84 <main+0x48>
+  90:	011fa023          	sw	a7,0(t6)
+  94:	00400593          	addi	a1,zero,4
+  98:	00038613          	addi	a2,t2,0
+  9c:	00028813          	addi	a6,t0,0
+  a0:	00200793          	addi	a5,zero,2
+  a4:	0180006f          	jal	zero,bc <main+0x80>
+  a8:	00178793          	addi	a5,a5,1
+  ac:	00160613          	addi	a2,a2,1
+  b0:	00258593          	addi	a1,a1,2
+  b4:	00280813          	addi	a6,a6,2
+  b8:	05c78063          	beq	a5,t3,f8 <main+0xbc>
+  bc:	00064703          	lbu	a4,0(a2)
+  c0:	fe0714e3          	bne	a4,zero,a8 <main+0x6c>
+  c4:	00058713          	addi	a4,a1,0
+  c8:	00b56c63          	bltu	a0,a1,e0 <main+0xa4>
+  cc:	00080693          	addi	a3,a6,0
+  d0:	01168023          	sb	a7,0(a3)
+  d4:	00f70733          	add	a4,a4,a5
+  d8:	00f686b3          	add	a3,a3,a5
+  dc:	fee55ae3          	bge	a0,a4,d0 <main+0x94>
+  e0:	00178793          	addi	a5,a5,1
+  e4:	001e8e93          	addi	t4,t4,1
+  e8:	00160613          	addi	a2,a2,1
+  ec:	00258593          	addi	a1,a1,2
+  f0:	00280813          	addi	a6,a6,2
+  f4:	fdc794e3          	bne	a5,t3,bc <main+0x80>
+  f8:	000fa023          	sw	zero,0(t6)
+  fc:	ffff0f13          	addi	t5,t5,-1
+ 100:	f80f10e3          	bne	t5,zero,80 <main+0x44>
+ 104:	000087b7          	lui	a5,0x8
+ 108:	ffd7aa23          	sw	t4,-12(a5) # 7ff4 <__stack_top+0x4>
+ 10c:	20400793          	addi	a5,zero,516
+ 110:	00fe9463          	bne	t4,a5,118 <main+0xdc>
+ 114:	00100f13          	addi	t5,zero,1
+ 118:	00008737          	lui	a4,0x8
+ 11c:	00070793          	addi	a5,a4,0 # 8000 <__stack_top+0x10>
+ 120:	ffe72c23          	sw	t5,-8(a4)
+ 124:	00100713          	addi	a4,zero,1
+ 128:	fee7ae23          	sw	a4,-4(a5)
+ 12c:	0000006f          	jal	zero,12c <main+0xf0>

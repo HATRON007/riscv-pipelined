@@ -2,10 +2,13 @@
 .global _start
 
 _start:
-    /* Initialize stack pointer */
+    .option push
+    .option norelax
+    la gp, __global_pointer$
+    .option pop
+
     la sp, __stack_top
 
-    /* Clear BSS section */
     la t0, __bss_start
     la t1, __bss_end
 1:
@@ -14,9 +17,7 @@ _start:
     addi t0, t0, 4
     j 1b
 2:
-    /* Jump to C main */
     call main
 
 _halt:
-    /* Trap CPU on exit */
     j _halt

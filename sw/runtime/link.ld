@@ -1,7 +1,6 @@
 OUTPUT_ARCH( "riscv" )
 ENTRY( _start )
 
-/* 8192 words * 4 bytes = 32KB */
 MEMORY {
     ram (rwx) : ORIGIN = 0x00000000, LENGTH = 32K
 }
@@ -10,22 +9,32 @@ SECTIONS {
     .text : {
         *(.text.init)
         *(.text*)
+        . = ALIGN(4);
+    } > ram
+
+    .rodata : {
+        *(.rodata*)
+        *(.srodata*)
+        . = ALIGN(4);
     } > ram
 
     .data : {
+        __global_pointer$ = . + 0x800;
         *(.data*)
-        *(.rodata*)
         *(.sdata*)
+        . = ALIGN(4);
     } > ram
 
     .bss : {
+        . = ALIGN(4);
         __bss_start = .;
         *(.bss*)
         *(.sbss*)
         *(COMMON)
+        . = ALIGN(4);
         __bss_end = .;
     } > ram
 
-    /* Set stack pointer to 0x8000 (32KB) */
-    __stack_top = ORIGIN(ram) + LENGTH(ram);
+    /* Reserve 0x7FF0..0x7FFC for benchmark MMIO */
+    __stack_top = 0x00007FF0;
 }
