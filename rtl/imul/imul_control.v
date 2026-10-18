@@ -1,4 +1,4 @@
-module imul_control(
+module imul_control *(parameter sparse_on = 1)(
     input clk,
     input rst,
     input b_lsb,
@@ -20,11 +20,15 @@ module imul_control(
     //s1,s2,s3 - FSM states
     //s1:idle, s2:calc, s3:done
 
+    wire [4 : 0] count;
+
     imul_counter sc(
         .rst(rst),
         .b_reg(b_reg),
-        .sparse_count(sparse_count)
+        .sparse_count(count)
     );
+
+    assign sparse_count = (sparse_on)? count : 5'd1;
 
     parameter s1 = 2'd1, s2 = 2'd2, s3 = 2'd3;
     reg [1 : 0] state;
@@ -75,7 +79,7 @@ module imul_control(
                 a_mux_sel = 1'b1;
                 r_mux_sel = 1'b1;
 
-                if(counter >= 6'd32 || b_reg == 32'd0) next_state = s3;
+                if(counter >= 6'd32 || (sparse_on && b_reg == 32'd0)) next_state = s3;
 
                 if(b_lsb) begin
                     add_mux_sel = 1'b1;
