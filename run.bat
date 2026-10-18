@@ -19,17 +19,32 @@ set RTL_FILES=^
   rtl/proc/stage_wb.v ^
   rtl/proc/branch_predictor.v
 
-echo [1/3] Running Bubble Sort Benchmark...
-iverilog -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+@REM  echo [1/3] Running Bubble Sort Benchmark...
+@REM  iverilog -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+@REM  if %errorlevel% neq 0 exit /b %errorlevel%
+@REM  vvp tb/sim.out
+
+@REM  echo [2/3] Running Binary Search Benchmark...
+@REM  iverilog -DBENCH_BINSEARCH -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+@REM  if %errorlevel% neq 0 exit /b %errorlevel%
+@REM  vvp tb/sim.out
+
+@REM  echo [3/3] Running Sieve Benchmark...
+@REM  iverilog -DBENCH_SIEVE -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+@REM  if %errorlevel% neq 0 exit /b %errorlevel%
+@REM  vvp tb/sim.out
+
+echo [1/3] Running MatMul (WIDTH=8)...
+iverilog -o tb/sim.out %RTL_FILES% tb/tb_bench_imul.v
 if %errorlevel% neq 0 exit /b %errorlevel%
 vvp tb/sim.out
 
-echo [2/3] Running Binary Search Benchmark...
-iverilog -DBENCH_BINSEARCH -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+echo [2/3] Running MatMul (WIDTH=16)...
+iverilog -DBENCH_MATMUL_W16 -o tb/sim.out %RTL_FILES% tb/tb_bench_imul.v
 if %errorlevel% neq 0 exit /b %errorlevel%
 vvp tb/sim.out
 
-echo [3/3] Running Sieve Benchmark...
-iverilog -DBENCH_SIEVE -o tb/sim.out %RTL_FILES% tb/tb_bench_bp.v
+echo [3/3] Running MatMul (WIDTH=32)...
+iverilog -DBENCH_MATMUL_W32 -o tb/sim.out %RTL_FILES% tb/tb_bench_imul.v
 if %errorlevel% neq 0 exit /b %errorlevel%
 vvp tb/sim.out

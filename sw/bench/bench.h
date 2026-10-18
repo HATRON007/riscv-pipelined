@@ -9,9 +9,13 @@
 #define BENCH_START()   do {} while (0)
 #define BENCH_STOP()    do {} while (0)
 #define BENCH_EXIT(sig, exp) do { \
-    printf("sig=%d expected=%d status=%s\n", (int)(sig), (int)(exp), ((sig) == (exp)) ? "PASS" : "FAIL"); \
-    return ((sig) == (exp)) ? 0 : 1; \
+    printf("sig=%u expected=%u status=%s\n", (uint32_t)(sig), (uint32_t)(exp), ((uint32_t)(sig) == (uint32_t)(exp)) ? "PASS" : "FAIL"); \
+    return ((uint32_t)(sig) == (uint32_t)(exp)) ? 0 : 1; \
 } while (0)
+
+static inline int32_t hw_mul(int32_t a, int32_t b) {
+    return a * b;
+}
 #else
 #define MMIO_WINDOW (*(volatile uint32_t *)0x7FF0)
 #define MMIO_SIG    (*(volatile uint32_t *)0x7FF4)
@@ -38,6 +42,12 @@
     __asm__ volatile("j ."); \
     __builtin_unreachable(); \
 } while (0)
+
+static inline __attribute__((always_inline)) int32_t hw_mul(int32_t a, int32_t b) {
+    int32_t res;
+    __asm__ volatile ("mul %0, %1, %2" : "=r"(res) : "r"(a), "r"(b));
+    return res;
+}
 #endif
 
 static inline __attribute__((always_inline)) uint32_t xorshift32(uint32_t *state) {

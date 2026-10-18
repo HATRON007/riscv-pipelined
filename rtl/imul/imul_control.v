@@ -1,4 +1,4 @@
-module imul_control *(parameter sparse_on = 1)(
+module imul_control #(parameter sparse_on = 1)(
     input clk,
     input rst,
     input b_lsb,
