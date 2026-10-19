@@ -270,7 +270,7 @@ module proc_datapath(
         .wb_res_sel_M(wb_res_sel_M)
     );
     
-    sram #(.INIT_FILE("prog.mem")) mem_inst_1(                         //data memory
+    sram mem_inst_1(                         //data memory
         .clk(clk),
         .mem_address(ex_res_reg_M_wire),
         .mem_wd(dstore_sram),

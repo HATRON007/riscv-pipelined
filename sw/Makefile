@@ -18,30 +18,27 @@ RUNTIME       = runtime/crt0.S
 LINKER_SCRIPT = runtime/link.ld
 BUILD_DIR     = build
 
-TARGETS = quicksort \
-          bp_bubblesort bp_binsearch bp_sieve \
+TARGETS = bp_bubblesort bp_binsearch bp_sieve \
           imul_matmul_w8 imul_matmul_w16 imul_matmul_w32
 
 MEMS  = $(patsubst %, $(BUILD_DIR)/%.mem, $(TARGETS))
 DUMPS = $(patsubst %, $(BUILD_DIR)/%.dump, $(TARGETS))
 
-vpath %.c programs bench
+vpath %.c bench
 
 all: $(MEMS) $(DUMPS)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
+# Branch predictor benchmarks (RV32I)
 $(BUILD_DIR)/bp_%.elf: $(RUNTIME) bp_%.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS_BP) -T $(LINKER_SCRIPT) -Wl,-Map=$(BUILD_DIR)/bp_$*.map $^ -o $@
 	@! $(NM) -u $@ | grep -q . || (echo "Error: Undefined symbols in $@" && exit 1)
 
+# Multiplier benchmarks (RV32I + Zmmul), WIDTH = 8 / 16 / 32
 $(BUILD_DIR)/imul_matmul_w%.elf: $(RUNTIME) imul_matmul.c | $(BUILD_DIR)
 	$(CC) $(CFLAGS_IMUL) -DWIDTH=$* -T $(LINKER_SCRIPT) -Wl,-Map=$(BUILD_DIR)/imul_matmul_w$*.map $^ -o $@
-	@! $(NM) -u $@ | grep -q . || (echo "Error: Undefined symbols in $@" && exit 1)
-
-$(BUILD_DIR)/%.elf: $(RUNTIME) %.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS_IMUL) -T $(LINKER_SCRIPT) -Wl,-Map=$(BUILD_DIR)/$*.map $^ -o $@
 	@! $(NM) -u $@ | grep -q . || (echo "Error: Undefined symbols in $@" && exit 1)
 
 $(BUILD_DIR)/%.dump: $(BUILD_DIR)/%.elf

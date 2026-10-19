@@ -6,7 +6,7 @@
 `elsif BENCH_SIEVE
 `define PROG_NAME "bp_sieve"
 `define MEM_FILE  "sw/build/bp_sieve.mem"
-`else
+`else // BENCH_BUBBLESORT (default)
 `define PROG_NAME "bp_bubblesort"
 `define MEM_FILE  "sw/build/bp_bubblesort.mem"
 `endif
@@ -174,15 +174,15 @@ module tb_bench_bp;
                  mon_off.cycles - mon_on.cycles);
 
         // every avoided mispredict should save exactly 2 cycles
-        if ((mon_off.cycles - mon_on.cycles) == 2 * (mon_off.misses - mon_on.misses))
-            $display("[PASS] cycles saved == 2 * mispredicts avoided");
+        if (((mon_off.cycles - mon_on.cycles) == 2 * (mon_off.misses - mon_on.misses)) & (mon_on.status == 1 && mon_off.status == 1 && mon_on.sig === mon_off.sig))
+            $display("[PASS]");
         else
-            $display("[FAIL] cycles saved != 2 * mispredicts avoided");
+            $display("[FAIL]");
 
-        if (mon_on.status == 1 && mon_off.status == 1 && mon_on.sig === mon_off.sig)
-            $display("[PASS] self-check passed, ON and OFF signatures match\n");
-        else
-            $display("[FAIL] self-check failed or signatures differ\n");
+        // if (mon_on.status == 1 && mon_off.status == 1 && mon_on.sig === mon_off.sig)
+        //     $display("[PASS] self-check passed, ON and OFF signatures match\n");
+        // else
+        //     $display("[FAIL] self-check failed or signatures differ\n");
 
         $finish;
     end

@@ -6,7 +6,7 @@
 `elsif BENCH_MATMUL_W32
 `define PROG_NAME "imul_matmul_w32"
 `define MEM_FILE  "sw/build/imul_matmul_w32.mem"
-`else
+`else //BENCH_MATMUL_W8 (default)
 `define PROG_NAME "imul_matmul_w8"
 `define MEM_FILE  "sw/build/imul_matmul_w8.mem"
 `endif
@@ -158,21 +158,21 @@ module tb_bench_imul;
                  mon_fixed.cycles - mon_opt.cycles);
 
         // FIXED must take the same time for every multiply
-        if (mon_fixed.min_lat == mon_fixed.max_lat)
-            $display("[PASS] FIXED latency is constant");
+        if ((mon_fixed.min_lat == mon_fixed.max_lat) & (mon_fixed.cycles - mon_fixed.busy_cycles == mon_opt.cycles - mon_opt.busy_cycles) & (mon_opt.status == 1 && mon_fixed.status == 1 && mon_opt.sig === mon_fixed.sig))
+            $display("[PASS]");
         else
-            $display("[FAIL] FIXED latency varies");
+            $display("[FAIL]");
 
-        // only the multiplier should differ between the two cores
-        if (mon_fixed.cycles - mon_fixed.busy_cycles == mon_opt.cycles - mon_opt.busy_cycles)
-            $display("[PASS] non-MUL cycles match");
-        else
-            $display("[FAIL] non-MUL cycles differ");
+        // // only the multiplier should differ between the two cores
+        // if (mon_fixed.cycles - mon_fixed.busy_cycles == mon_opt.cycles - mon_opt.busy_cycles)
+        //     $display("[PASS] non-MUL cycles match");
+        // else
+        //     $display("[FAIL] non-MUL cycles differ");
 
-        if (mon_opt.status == 1 && mon_fixed.status == 1 && mon_opt.sig === mon_fixed.sig)
-            $display("[PASS] self-check passed, FIXED and OPT signatures match\n");
-        else
-            $display("[FAIL] self-check failed or signatures differ\n");
+        // if (mon_opt.status == 1 && mon_fixed.status == 1 && mon_opt.sig === mon_fixed.sig)
+        //     $display("[PASS] self-check passed, FIXED and OPT signatures match\n");
+        // else
+        //     $display("[FAIL] self-check failed or signatures differ\n");
 
         $finish;
     end

@@ -1,0 +1,7 @@
+build/
+sw/build/
+*.out
+*.vvp
+*.vcd
+*.lxt
+__pycache__/
