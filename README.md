@@ -24,7 +24,7 @@ Dynamic branch prediction reduces cycle count by up to 24%, and the variable-lat
 </p>
 
 <p align="center">
-  <em>(Baseline datapath, before branch predictor and multiplier integration)</em>
+  <em>(Baseline datapath used as reference during phase 1)</em>
 </p>
 
 ### 1. Hazard Handling
