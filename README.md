@@ -123,22 +123,23 @@ docs/         resources
 
 ## Usage
 
-**Requirements**
+### Requirements
 
-- [Icarus Verilog](https://steveicarus.github.io/iverilog/) and Python 3, to run the simulations
-- [RISC-V GNU toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) (`riscv64-unknown-elf-gcc`) and make, to build the benchmarks (Linux or WSL)
+- [Icarus Verilog](https://github.com/steveicarus/iverilog) and Python 3, to run the simulations
+- [RISC-V GNU toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) (`riscv64-unknown-elf-gcc`), `make` and Python 3, to build the benchmarks (Linux or WSL)
 
-**Run**
+### Run
 
-```bash
+```
 git clone https://github.com/HATRON007/rv32-mira.git
 cd rv32-mira
 
 python scripts/run.py unit      # directed tests
-make -C sw                      # build the benchmark programs (Linux / WSL)
+
+make -C sw                      # build the benchmarks (Linux / WSL)
 python scripts/run.py bench     # run the benchmarks
 ```
 
-Tested with the benchmarks built in WSL and the simulations run on Windows with the OSS CAD Suite. Use `python3` instead of `python` on Linux.
+The benchmarks must be built before they can be run. You only need to rebuild when the C code in `sw/` changes. Use `python3` instead of `python` on Linux.
 
-Each test prints `[PASS]` or `[FAIL]`, and a run ends with a count such as `3/3 passed`. See [`sw/README.md`](sw/README.md) for how the benchmarks work.
+Each test prints `[PASS]` or `[FAIL]`, and a run ends with a count such as `3/3 passed`. See [sw/README.md](sw/README.md) for how the benchmarks work.
