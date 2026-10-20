@@ -19,6 +19,14 @@ Dynamic branch prediction reduces cycle count by up to 24%, and the variable-lat
 
 ## Microarchitecture
 
+<p align="center">
+  <img src="docs/baseline_datapath.png" width="700">
+</p>
+
+<p align="center">
+  <em>(Baseline datapath, before branch predictor and multiplier integration)</em>
+</p>
+
 ### 1. Hazard Handling
 
 - **Forwarding:** EX operands are bypassed from the MEM and WB stages (MEM has priority). Store data has its own bypass. The register file is write-through.
