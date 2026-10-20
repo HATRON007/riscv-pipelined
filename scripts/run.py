@@ -1,6 +1,7 @@
 import glob
 import os
 import re
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +12,39 @@ os.chdir(ROOT)
 RTL_FILES = sorted(glob.glob("rtl/imul/*.v") + glob.glob("rtl/proc/*.v"))
 TIMEOUT = 60  # seconds per simulation
 JOBS = os.cpu_count() or 4
+
+
+def make_env():
+    """On Windows, if iverilog/vvp come from an OSS CAD Suite install, add the
+    suite's bin and lib folders to PATH for the child processes. This does the
+    same thing as environment.bat, so vvp doesn't crash in a plain terminal."""
+    env = os.environ.copy()
+    if os.name != "nt":
+        return env
+    vvp = shutil.which("vvp")
+    if not vvp:
+        return env
+    root = os.path.dirname(os.path.dirname(os.path.abspath(vvp)))
+    if os.path.isfile(os.path.join(root, "environment.bat")):
+        extra = [os.path.join(root, "bin"), os.path.join(root, "lib")]
+        env["PATH"] = os.pathsep.join(extra + [env.get("PATH", "")])
+    return env
+
+
+ENV = make_env()
+
+
+def check_tools():
+    """Exit with a clear message if iverilog or vvp can't be found."""
+    missing = [t for t in ("iverilog", "vvp") if shutil.which(t) is None]
+    if missing:
+        print(f"Could not find: {', '.join(missing)}")
+        print("Install Icarus Verilog (https://bleyer.org/icarus/ on Windows,")
+        print("'sudo apt install iverilog' on Linux/WSL) or the OSS CAD Suite")
+        print("(https://github.com/YosysHQ/oss-cad-suite-build/releases),")
+        print("and make sure its 'bin' folder is on your PATH.")
+        sys.exit(1)
+
 
 UNIT_TESTS = sorted(
     glob.glob("tb/tb_isa/*_tb.v") +
@@ -55,21 +89,21 @@ def run_sim(name, tb_file, defines=(), show=None):
     out_bin = os.path.join("build", name + ".out")
 
     cmd = ["iverilog", "-g2012", "-o", out_bin, *defines, *RTL_FILES, tb_file]
-    comp = subprocess.run(cmd, capture_output=True, text=True)
+    comp = subprocess.run(cmd, capture_output=True, text=True, env=ENV)
     if comp.returncode != 0:
         return label, False, f"[COMPILE ERROR]\n{comp.stderr}"
 
     try:
         sim = subprocess.run(["vvp", out_bin], capture_output=True,
-                             text=True, timeout=TIMEOUT)
+                             text=True, timeout=TIMEOUT, env=ENV)
     except subprocess.TimeoutExpired:
         return label, False, f"[TIMEOUT] >{TIMEOUT}s (missing $finish or infinite loop?)"
 
     out = (sim.stdout or "") + (sim.stderr or "")
     if sim.returncode != 0:
         return label, False, (f"[VVP EXIT {sim.returncode}] vvp crashed. "
-                              f"On Windows, run from the OSS CAD Suite shell "
-                              f"(environment.bat).\n{out}")
+                              f"Check that iverilog and vvp come from the same "
+                              f"install (run 'where vvp' and 'where iverilog').\n{out}")
     if not out.strip():
         return label, False, "[EMPTY OUTPUT] testbench printed nothing."
 
@@ -126,9 +160,11 @@ def main():
         print("Usage: python scripts/run.py [unit | bp | imul | bench | all]")
         sys.exit(1)
 
+    check_tools()
+
     ok = True
     for fn in modes[mode]:
-        ok = fn() and ok   # keep going so you see all failures
+        ok = fn() and ok
     sys.exit(0 if ok else 1)
 
 
