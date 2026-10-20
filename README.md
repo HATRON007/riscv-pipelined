@@ -4,6 +4,7 @@ rv32-mira is a 32-bit, 5-stage pipelined processor based on the RV32I ISA, with 
 
 Dynamic branch prediction reduces cycle count by up to 24%, and the variable-latency multiplier speeds up matrix multiplication by up to 2.6x.
 
+
 ## Features
 
 - 5-stage pipeline: IF, ID, EX, MEM, WB
@@ -14,6 +15,7 @@ Dynamic branch prediction reduces cycle count by up to 24%, and the variable-lat
 - 2-bit dynamic branch predictor with a 256-entry BTB
 - Variable-latency iterative multiplier with valid/ready handshake
 - LUTRAM for the BTB, block RAM for instruction and data memory
+
 
 ## Microarchitecture
 
@@ -58,6 +60,7 @@ Benchmark: 16x16 matrix multiplication (4,096 `mul`), with the multiplier operan
 | 16-bit | 174,485 → 91,157 | 5.71 → 2.98 | 34.00 → 13.66 | 1.91x |
 | 32-bit | 174,485 → 137,349 | 5.71 → 4.49 | 34.00 → 24.93 | 1.27x |
 
+
 ## FPGA Synthesis
 
 Synthesized in Vivado for an Artix-7 (`xc7a200tfbg676-2`) with a 100 MHz clock constraint. Timing was met with +0.309 ns of setup slack, giving a maximum frequency of about 103 MHz.
@@ -71,22 +74,6 @@ Synthesized in Vivado for an Artix-7 (`xc7a200tfbg676-2`) with a 100 MHz clock c
 
 The two 32 KB memories use the block RAM. The BTB is inferred as distributed RAM.
 
-## Software and Verification
-
-The core runs real programs, not only hand-written instruction sequences. The benchmarks in `sw/bench/` are C programs compiled with `riscv64-unknown-elf-gcc` (`-march=rv32i`, plus Zmmul for the multiplier kernels) using a minimal startup file (`crt0.S`) and a 32 KB linker script. The ELF is converted to a `.mem` image (`hexgen.py`) that is loaded into both memories at simulation start. The build also disassembles each program and fails if it contains an instruction the core does not implement.
-
-**Correctness.** Each program computes a result (a checksum or a count) and compares it against a value computed beforehand. At the end it writes to memory-mapped addresses that the testbench monitors:
-
-| Address | Purpose |
-| :--- | :--- |
-| `0x7FF0` | Measurement window (1 = start, 0 = end) |
-| `0x7FF4` | Result signature |
-| `0x7FF8` | Status (1 = result matched) |
-| `0x7FFC` | Done |
-
-Cycle and instruction counters run only inside the measurement window, so startup code and the final checksum are excluded. A benchmark passes only if both cores report status 1 with identical signatures. The branch predictor benchmark also requires cycles saved to equal exactly 2x the mispredictions avoided, and the multiplier benchmark requires that non-multiply cycles are identical in both configurations.
-
-**Test runner.** `scripts/run.py` compiles the RTL and each testbench with Icarus Verilog, runs them in parallel with a 60 s timeout, and reports `[PASS]` or `[FAIL]` per test, followed by a count such as `3/3 passed`. A test fails on a compile error, a timeout, or any `FAIL`, `FATAL` or `ERROR` in its output.
 
 ## Development Approach
 
@@ -107,6 +94,7 @@ Replaced the static predict-not-taken front end with a 2-bit BTB-based predictor
 **5. Multiplier integration**
 Integrated the variable-latency iterative multiplier into EX over a valid/ready handshake. The pipeline stalls while a multiplication is in progress and resumes when the result is valid.
 
+
 ## Repository Structure
 
 ```text
@@ -124,19 +112,25 @@ scripts/      run.py (test runner)
 docs/         resources
 ```
 
+
 ## Usage
 
-Requires Icarus Verilog and Python 3. The benchmarks also need a RISC-V GNU toolchain (`riscv64-unknown-elf-gcc`) and make.
+**Requirements**
+
+- [Icarus Verilog](https://steveicarus.github.io/iverilog/) and Python 3, to run the simulations
+- [RISC-V GNU toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain) (`riscv64-unknown-elf-gcc`) and make, to build the benchmarks (Linux or WSL)
+
+**Run**
 
 ```bash
 git clone https://github.com/HATRON007/rv32-mira.git
 cd rv32-mira
 
 python scripts/run.py unit      # directed tests
-make -C sw                      # build benchmark programs
-python scripts/run.py bench     # run benchmarks
+make -C sw                      # build the benchmark programs (Linux / WSL)
+python scripts/run.py bench     # run the benchmarks
 ```
 
-The benchmarks are C programs compiled and run on the core. See sw/README.md for how they are built and how correctness is checked.
+Tested with the benchmarks built in WSL and the simulations run on Windows with the OSS CAD Suite. Use `python3` instead of `python` on Linux.
 
-`python scripts/run.py` with no argument runs everything (`unit`, `bp`, `imul`, `bench` and `all` are also accepted).
+Each test prints `[PASS]` or `[FAIL]`, and a run ends with a count such as `3/3 passed`. See [`sw/README.md`](sw/README.md) for how the benchmarks work.
